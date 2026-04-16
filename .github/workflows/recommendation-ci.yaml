@@ -51,6 +51,7 @@ jobs:
           args: --file=recommendation/pom.xml --severity-threshold=high
           json: true
         env:
+          JAVA_HOME: /opt/jdk
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       - name: Upload Snyk Results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
