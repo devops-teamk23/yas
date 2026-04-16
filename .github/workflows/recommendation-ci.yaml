@@ -38,12 +38,12 @@ jobs:
           version: v8.18.4
       - name: Run Maven Checkstyle
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        run: mvn checkstyle:checkstyle -pl recommendation -am -Dcheckstyle.output.file=recommendation-checkstyle-result.xml
+        run: mvn checkstyle:checkstyle -pl recommendation -am -Dcheckstyle.output.file=recommendation/target/recommendation-checkstyle-result.xml
       - name: Upload Checkstyle Result
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: jwgmeligmeyling/checkstyle-github-action@master
         with:
-          path: "**/recommendation-checkstyle-result.xml"
+          path: "recommendation/target/recommendation-checkstyle-result.xml"
       - name: Run Snyk Security Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: snyk/actions/maven@master
