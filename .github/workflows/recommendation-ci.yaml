@@ -89,6 +89,15 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/workflows/actions
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Build and Install Dependencies
+        run: mvn clean install -DskipTests
       - name: Run Maven Tests
         run: mvn test -pl recommendation
       - name: Test Results
