@@ -29,6 +29,8 @@ jobs:
         with:
           fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
       - uses: ./.github/workflows/actions
+      - name: Build and Install Dependencies
+        run: mvn clean install -DskipTests
       - name: Run Gitleaks Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: ./.github/workflows/gitleak
