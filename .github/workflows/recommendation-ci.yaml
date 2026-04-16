@@ -92,6 +92,8 @@ jobs:
       - uses: ./.github/workflows/actions
       - name: Run Maven Tests
         run: mvn test -pl recommendation -am
+      - name: Generate Jacoco Report
+        run: mvn jacoco:report -pl recommendation
       - name: Test Results
         uses: dorny/test-reporter@v1
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
