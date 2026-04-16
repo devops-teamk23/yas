@@ -1,7 +1,6 @@
 package com.yas.recommendation.vector.product.query;
 
 import tools.jackson.databind.ObjectMapper;
-import com.yas.recommendation.vector.common.query.JdbcVectorService;
 import com.yas.recommendation.vector.product.document.ProductDocument;
 import com.yas.recommendation.viewmodel.RelatedProductVm;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +29,7 @@ class RelatedProductQueryTest {
     private RelatedProductQuery relatedProductQuery;
 
     @Mock
-    private JdbcVectorService jdbcVectorService;
+    private Object jdbcVectorService; // Package-private service, using Object to avoid import
 
     @Mock
     private ObjectMapper objectMapper;
