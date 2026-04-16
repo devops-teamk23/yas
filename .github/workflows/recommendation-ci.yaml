@@ -23,7 +23,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unit-test/recommendation' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,12 +44,7 @@ jobs:
         uses: jwgmeligmeyling/checkstyle-github-action@master
         with:
           path: "recommendation/target/recommendation-checkstyle-result.xml"
-      - name: Setup Java for Security Scan
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: actions/setup-java@v3
-        with:
-          java-version: "25"
-          distribution: "temurin"
+
       - name: Run Snyk Security Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: snyk/actions/maven@master
@@ -89,7 +84,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unit-test/recommendation' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -119,7 +114,7 @@ jobs:
     needs: run-unit-test
     runs-on: ubuntu-latest
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unit-test/recommendation' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
         with:
