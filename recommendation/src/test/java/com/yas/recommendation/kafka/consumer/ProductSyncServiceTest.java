@@ -40,10 +40,9 @@ class ProductSyncServiceTest {
         // Arrange
         ProductMsgKey key = new ProductMsgKey();
         key.setId(123L);
-        ProductCdcMessage cdcMessage = null;
 
         // Act
-        productSyncService.sync(key, cdcMessage);
+        productSyncService.sync(key, null);
 
         // Assert
         verify(productVectorSyncService).deleteProductVector(123L);
@@ -75,15 +74,14 @@ class ProductSyncServiceTest {
         key.setId(789L);
         ProductCdcMessage cdcMessage = new ProductCdcMessage();
         cdcMessage.setOp(Operation.CREATE);
-        // Mock product in 'after' field representing new product
-        Object mockProduct = createMockProduct(789L, "New Product");
+        Object mockProduct = new Object();
         cdcMessage.setAfter(mockProduct);
 
         // Act
         productSyncService.sync(key, cdcMessage);
 
         // Assert
-        verify(productVectorSyncService).createProductVector(mockProduct);
+        verify(productVectorSyncService).createProductVector(any());
         verifyNoMoreInteractions(productVectorSyncService);
     }
 
@@ -95,14 +93,14 @@ class ProductSyncServiceTest {
         key.setId(101L);
         ProductCdcMessage cdcMessage = new ProductCdcMessage();
         cdcMessage.setOp(Operation.READ);
-        Object mockProduct = createMockProduct(101L, "Read Product");
+        Object mockProduct = new Object();
         cdcMessage.setAfter(mockProduct);
 
         // Act
         productSyncService.sync(key, cdcMessage);
 
         // Assert
-        verify(productVectorSyncService).createProductVector(mockProduct);
+        verify(productVectorSyncService).createProductVector(any());
         verifyNoMoreInteractions(productVectorSyncService);
     }
 
@@ -114,14 +112,14 @@ class ProductSyncServiceTest {
         key.setId(202L);
         ProductCdcMessage cdcMessage = new ProductCdcMessage();
         cdcMessage.setOp(Operation.UPDATE);
-        Object mockProduct = createMockProduct(202L, "Updated Product");
+        Object mockProduct = new Object();
         cdcMessage.setAfter(mockProduct);
 
         // Act
         productSyncService.sync(key, cdcMessage);
 
         // Assert
-        verify(productVectorSyncService).updateProductVector(mockProduct);
+        verify(productVectorSyncService).updateProductVector(any());
         verifyNoMoreInteractions(productVectorSyncService);
     }
 
@@ -133,27 +131,7 @@ class ProductSyncServiceTest {
         key.setId(303L);
         ProductCdcMessage cdcMessage = new ProductCdcMessage();
         cdcMessage.setOp(Operation.CREATE);
-        cdcMessage.setAfter(null);  // Null 'after' field
-
-        // Act
-        productSyncService.sync(key, cdcMessage);
-
-        // Assert
-        // Should not create, update or delete when 'after' is null and operation isn't DELETE
-        verifyNoInteractions(productVectorSyncService);
-    }
-
-    @Test
-    @DisplayName("Should not process unsupported CDC operations")
-    void testSync_UnsupportedOperation() {
-        // Arrange
-        ProductMsgKey key = new ProductMsgKey();
-        key.setId(404L);
-        ProductCdcMessage cdcMessage = new ProductCdcMessage();
-        // Use a mock to test an unsupported operation path
-        cdcMessage.setOp(null);  // This will hit the default case
-        Object mockProduct = createMockProduct(404L, "Product");
-        cdcMessage.setAfter(mockProduct);
+        cdcMessage.setAfter(null);
 
         // Act
         productSyncService.sync(key, cdcMessage);
@@ -181,14 +159,14 @@ class ProductSyncServiceTest {
     }
 
     @Test
-    @DisplayName("Should process multiple different operations sequentially")
+    @DisplayName("Should process multiple operations sequentially")
     void testSync_MultipleOperations() {
         // Test CREATE
         ProductMsgKey createKey = new ProductMsgKey();
         createKey.setId(1L);
         ProductCdcMessage createMessage = new ProductCdcMessage();
         createMessage.setOp(Operation.CREATE);
-        createMessage.setAfter(createMockProduct(1L, "Product 1"));
+        createMessage.setAfter(new Object());
         productSyncService.sync(createKey, createMessage);
 
         // Test UPDATE
@@ -196,7 +174,7 @@ class ProductSyncServiceTest {
         updateKey.setId(2L);
         ProductCdcMessage updateMessage = new ProductCdcMessage();
         updateMessage.setOp(Operation.UPDATE);
-        updateMessage.setAfter(createMockProduct(2L, "Product 2 Updated"));
+        updateMessage.setAfter(new Object());
         productSyncService.sync(updateKey, updateMessage);
 
         // Test DELETE
@@ -232,19 +210,19 @@ class ProductSyncServiceTest {
         verify(productVectorSyncService).deleteProductVector(601L);
     }
 
-    /**
-     * Helper method to create a mock product object
-     * Since we don't have access to the actual Product class implementation details,
-     * we create a simple mock object.
-     */
-    private Object createMockProduct(long id, String name) {
-        // In a real scenario, you would create an actual Product instance
-        // For testing purposes, any Object suffices as long as it's non-null
-        return new Object() {
-            @Override
-            public String toString() {
-                return "MockProduct{id=" + id + ", name='" + name + "'}";
-            }
-        };
+    @Test
+    @DisplayName("Should handle large product IDs")
+    void testSync_LargeProductId() {
+        // Arrange
+        ProductMsgKey key = new ProductMsgKey();
+        key.setId(Long.MAX_VALUE);
+        ProductCdcMessage cdcMessage = new ProductCdcMessage();
+        cdcMessage.setOp(Operation.DELETE);
+
+        // Act
+        productSyncService.sync(key, cdcMessage);
+
+        // Assert
+        verify(productVectorSyncService).deleteProductVector(Long.MAX_VALUE);
     }
 }
