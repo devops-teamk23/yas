@@ -109,6 +109,12 @@ jobs:
           min-coverage-changed-files: 60
           title: "Recommendation Coverage Report"
           update-comment: true
+      - name: Upload Coverage Report
+        if: success()
+        uses: actions/upload-artifact@master
+        with:
+          name: Jacoco Coverage Report
+          path: recommendation/target/site/jacoco/
 
   build:
     needs: run-unit-test
