@@ -44,6 +44,12 @@ jobs:
         uses: jwgmeligmeyling/checkstyle-github-action@master
         with:
           path: "recommendation/target/recommendation-checkstyle-result.xml"
+      - name: Setup Java for Security Scan
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: actions/setup-java@v3
+        with:
+          java-version: "25"
+          distribution: "temurin"
       - name: Run Snyk Security Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: snyk/actions/maven@master
@@ -51,7 +57,6 @@ jobs:
           args: --file=recommendation/pom.xml --severity-threshold=high
           json: true
         env:
-          JAVA_HOME: /opt/jdk
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       - name: Upload Snyk Results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
