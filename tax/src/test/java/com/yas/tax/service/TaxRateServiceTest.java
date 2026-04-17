@@ -126,7 +126,7 @@ public class TaxRateServiceTest {
         void testCreateTaxRate_shouldSuccessfullyCreate() {
             // Arrange - use explicit taxClassId 1L to match mock setup
             TaxRatePostVm postVm = new TaxRatePostVm(
-                10.0, "12345", 100L, 1L, 1L
+                10.0, "12345", 1L, 100L, 1L
             );
             when(taxRateRepository.save(any(TaxRate.class))).thenReturn(taxRate);
             
@@ -144,7 +144,7 @@ public class TaxRateServiceTest {
         void testCreateTaxRate_shouldThrowNotFoundExceptionWhenTaxClassNotFound() {
             // Arrange
             TaxRatePostVm postVm = new TaxRatePostVm(
-                10.0, "12345", 100L, 1L, 999L
+                10.0, "12345", 999L, 100L, 1L
             );
             // Override default stub for this specific test
             when(taxClassRepository.existsById(999L)).thenReturn(false);
@@ -163,7 +163,7 @@ public class TaxRateServiceTest {
         void testUpdateTaxRate_shouldSuccessfullyUpdate() {
             // Arrange - use explicit taxClassId 1L to match mock setup
             TaxRatePostVm postVm = new TaxRatePostVm(
-                15.0, "54321", 200L, 1L, 1L
+                15.0, "54321", 1L, 200L, 1L
             );
             when(taxRateRepository.findById(1L)).thenReturn(Optional.of(taxRate));
             
@@ -179,7 +179,7 @@ public class TaxRateServiceTest {
         void testUpdateTaxRate_shouldThrowNotFoundExceptionWhenTaxRateNotFound() {
             // Arrange
             TaxRatePostVm postVm = new TaxRatePostVm(
-                15.0, "54321", 200L, 1L, taxClass.getId()
+                15.0, "54321", taxClass.getId(), 200L, 1L
             );
             when(taxRateRepository.findById(999L)).thenReturn(Optional.empty());
             
@@ -193,7 +193,7 @@ public class TaxRateServiceTest {
         void testUpdateTaxRate_shouldThrowNotFoundExceptionWhenNewTaxClassNotFound() {
             // Arrange
             TaxRatePostVm postVm = new TaxRatePostVm(
-                15.0, "54321", 200L, 1L, 999L
+                15.0, "54321", 999L, 200L, 1L
             );
             when(taxRateRepository.findById(1L)).thenReturn(Optional.of(taxRate));
             // Override default stub for this specific test
