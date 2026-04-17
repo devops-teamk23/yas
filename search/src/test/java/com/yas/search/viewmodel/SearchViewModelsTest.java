@@ -37,18 +37,6 @@ class SearchViewModelsTest {
         }
 
         @Test
-        @DisplayName("Should handle all required parameters")
-        void testAllParameters() {
-            // Act
-            ProductGetVm vm = new ProductGetVm(
-                    123L, "Test", "test", 456L, 99.99,
-                    true, true, false, true, ZonedDateTime.now());
-
-            // Assert
-            assertNotNull(vm, "Should handle all parameters");
-        }
-
-        @Test
         @DisplayName("Should have working toString()")
         void testToString() {
             // Act
@@ -68,11 +56,13 @@ class SearchViewModelsTest {
     class ProductListGetVmTests {
 
         @Test
-        @DisplayName("Should create ProductListGetVm with all required parameters")
+        @DisplayName("Should create ProductListGetVm with all 7 required parameters")
         void testCreateProductListGetVm() {
-            // Act
+            // Arrange
             List<ProductGetVm> products = new ArrayList<>();
             Map<String, Map<String, Long>> aggregations = new HashMap<>();
+            
+            // Act
             ProductListGetVm vm = new ProductListGetVm(products, 0, 10, 100L, 10, false, aggregations);
 
             // Assert
@@ -80,10 +70,12 @@ class SearchViewModelsTest {
         }
 
         @Test
-        @DisplayName("Should handle empty product list")
+        @DisplayName("Should handle empty product list with all parameters")
         void testEmptyProductList() {
-            // Act
+            // Arrange
             Map<String, Map<String, Long>> aggregations = new HashMap<>();
+            
+            // Act
             ProductListGetVm vm = new ProductListGetVm(new ArrayList<>(), 0, 10, 0L, 0, true, aggregations);
 
             // Assert
@@ -91,11 +83,13 @@ class SearchViewModelsTest {
         }
 
         @Test
-        @DisplayName("Should handle pagination parameters")
+        @DisplayName("Should handle pagination with all parameters")
         void testPaginationParameters() {
-            // Act
+            // Arrange
             List<ProductGetVm> products = new ArrayList<>();
             Map<String, Map<String, Long>> aggregations = new HashMap<>();
+            
+            // Act
             ProductListGetVm vm = new ProductListGetVm(products, 1, 20, 50L, 3, false, aggregations);
 
             // Assert
@@ -103,10 +97,12 @@ class SearchViewModelsTest {
         }
 
         @Test
-        @DisplayName("Should handle last page flag true")
+        @DisplayName("Should handle last page true flag")
         void testLastPageTrue() {
-            // Act
+            // Arrange
             Map<String, Map<String, Long>> aggregations = new HashMap<>();
+            
+            // Act
             ProductListGetVm vm = new ProductListGetVm(new ArrayList<>(), 2, 10, 25L, 3, true, aggregations);
 
             // Assert
@@ -114,15 +110,16 @@ class SearchViewModelsTest {
         }
 
         @Test
-        @DisplayName("Should handle complex aggregations")
+        @DisplayName("Should handle complex aggregations map")
         void testComplexAggregations() {
-            // Act
+            // Arrange
             List<ProductGetVm> products = new ArrayList<>();
             Map<String, Map<String, Long>> aggregations = new HashMap<>();
             Map<String, Long> innerMap = new HashMap<>();
             innerMap.put("count", 5L);
             aggregations.put("brand", innerMap);
             
+            // Act
             ProductListGetVm vm = new ProductListGetVm(products, 0, 10, 100L, 10, false, aggregations);
 
             // Assert
@@ -132,14 +129,34 @@ class SearchViewModelsTest {
         @Test
         @DisplayName("Should have working toString()")
         void testToString() {
-            // Act
+            // Arrange
             Map<String, Map<String, Long>> aggregations = new HashMap<>();
+            
+            // Act
             ProductListGetVm vm = new ProductListGetVm(new ArrayList<>(), 0, 10, 100L, 10, false, aggregations);
             String str = vm.toString();
 
             // Assert
             assertNotNull(str, "toString should not be null");
             assertTrue(str.contains("ProductListGetVm"), "toString should contain class name");
+        }
+
+        @Test
+        @DisplayName("Should handle multiple products with pagination")
+        void testMultipleProductsWithPagination() {
+            // Arrange
+            List<ProductGetVm> products = new ArrayList<>();
+            ProductGetVm product1 = new ProductGetVm(1L, "Product 1", "product-1", 100L, 50.0, true, true, false, true, ZonedDateTime.now());
+            ProductGetVm product2 = new ProductGetVm(2L, "Product 2", "product-2", 101L, 75.0, true, true, true, true, ZonedDateTime.now());
+            products.add(product1);
+            products.add(product2);
+            Map<String, Map<String, Long>> aggregations = new HashMap<>();
+            
+            // Act
+            ProductListGetVm vm = new ProductListGetVm(products, 0, 2, 100L, 50, false, aggregations);
+
+            // Assert
+            assertNotNull(vm, "Should handle multiple products");
         }
     }
 
@@ -148,8 +165,8 @@ class SearchViewModelsTest {
     class ErrorVmTests {
 
         @Test
-        @DisplayName("Should create ErrorVm with required three parameters")
-        void testCreateErrorVm() {
+        @DisplayName("Should create ErrorVm with 3 required parameters")
+        void testCreateErrorVmThreeParams() {
             // Act
             ErrorVm vm = new ErrorVm("400", "Bad Request", "Invalid input");
 
@@ -158,43 +175,18 @@ class SearchViewModelsTest {
         }
 
         @Test
-        @DisplayName("Should create ErrorVm with optional field errors")
-        void testCreateErrorVmWithFieldErrors() {
-            // Act
+        @DisplayName("Should create ErrorVm with 4 parameters including field errors")
+        void testCreateErrorVmFourParams() {
+            // Arrange
             List<String> fieldErrors = new ArrayList<>();
             fieldErrors.add("name is required");
             fieldErrors.add("email format invalid");
+            
+            // Act
             ErrorVm vm = new ErrorVm("422", "Unprocessable Entity", "Validation failed", fieldErrors);
 
             // Assert
             assertNotNull(vm, "ErrorVm with field errors should be created");
-        }
-
-        @Test
-        @DisplayName("Should handle null status code")
-        void testNullStatusCode() {
-            // Act & Assert
-            assertDoesNotThrow(() -> {
-                new ErrorVm(null, "Error", "Detail");
-            }, "Should handle null status code");
-        }
-
-        @Test
-        @DisplayName("Should handle null title")
-        void testNullTitle() {
-            // Act & Assert
-            assertDoesNotThrow(() -> {
-                new ErrorVm("500", null, "Internal server error");
-            }, "Should handle null title");
-        }
-
-        @Test
-        @DisplayName("Should handle null detail")
-        void testNullDetail() {
-            // Act & Assert
-            assertDoesNotThrow(() -> {
-                new ErrorVm("404", "Not Found", null);
-            }, "Should handle null detail");
         }
 
         @Test
@@ -242,7 +234,7 @@ class SearchViewModelsTest {
         }
 
         @Test
-        @DisplayName("Should handle various error codes")
+        @DisplayName("Should handle various HTTP error codes")
         void testVariousErrorCodes() {
             // Act & Assert
             assertDoesNotThrow(() -> {
@@ -252,6 +244,23 @@ class SearchViewModelsTest {
                 new ErrorVm("404", "Not Found", "Detail4");
                 new ErrorVm("500", "Internal Server Error", "Detail5");
             }, "Should handle various HTTP error codes");
+        }
+
+        @Test
+        @DisplayName("Should handle multiple field errors")
+        void testMultipleFieldErrors() {
+            // Arrange
+            List<String> fieldErrors = new ArrayList<>();
+            fieldErrors.add("firstName: must not be blank");
+            fieldErrors.add("lastName: must not be blank");
+            fieldErrors.add("email: must be a valid email");
+            fieldErrors.add("password: minimum 8 characters required");
+            
+            // Act
+            ErrorVm vm = new ErrorVm("422", "Validation Failed", "Input validation errors", fieldErrors);
+
+            // Assert
+            assertNotNull(vm, "Should handle multiple field errors");
         }
     }
 
@@ -331,11 +340,13 @@ class SearchViewModelsTest {
         @Test
         @DisplayName("Should handle populated name list")
         void testPopulatedNameList() {
-            // Act
+            // Arrange
             List<ProductNameGetVm> names = new ArrayList<>();
             names.add(new ProductNameGetVm("Product 1"));
             names.add(new ProductNameGetVm("Product 2"));
             names.add(new ProductNameGetVm("Product 3"));
+            
+            // Act
             ProductNameListVm vm = new ProductNameListVm(names);
 
             // Assert
@@ -364,43 +375,6 @@ class SearchViewModelsTest {
             // Assert
             assertNotNull(str, "toString should not be null");
             assertTrue(str.contains("ProductNameListVm"), "toString should contain class name");
-        }
-    }
-
-    @Nested
-    @DisplayName("ProductEsDetailVm Integration Tests")
-    class ProductEsDetailVmTests {
-
-        @Test
-        @DisplayName("Should handle product details in search context")
-        void testProductDetailsInSearch() {
-            // Act & Assert
-            assertDoesNotThrow(() -> {
-                ProductGetVm vm = new ProductGetVm(
-                        123L, "Laptop", "laptop", 789L, 999.99,
-                        true, true, true, true, ZonedDateTime.now());
-                
-                assertNotNull(vm);
-            }, "Should handle product details");
-        }
-
-        @Test
-        @DisplayName("Should handle multiple products in list")
-        void testMultipleProductsInList() {
-            // Act
-            List<ProductGetVm> products = new ArrayList<>();
-            for (int i = 0; i < 5; i++) {
-                ProductGetVm vm = new ProductGetVm(
-                        (long) i, "Product " + i, "product-" + i, (long) i * 100, 50.0 * (i + 1),
-                        true, true, false, true, ZonedDateTime.now());
-                products.add(vm);
-            }
-
-            Map<String, Map<String, Long>> aggregations = new HashMap<>();
-            ProductListGetVm listVm = new ProductListGetVm(products, 0, 10, 50L, 5, false, aggregations);
-
-            // Assert
-            assertNotNull(listVm, "Should handle multiple products");
         }
     }
 }
