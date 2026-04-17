@@ -44,7 +44,7 @@ class ProductServiceTest {
     private RecommendationConfig config;
 
     @Mock
-    private RequestHeadersUriSpec<ResponseSpec> requestSpec;
+    private RequestHeadersUriSpec<?> requestSpec;
 
     @Mock
     private ResponseSpec responseSpec;
