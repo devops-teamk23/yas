@@ -103,7 +103,7 @@ class WebhookServiceTest {
         @DisplayName("Should return pageable webhooks")
         void testGetPageableWebhooks_shouldReturnPageableWebhooks() {
             Page<Webhook> page = new PageImpl<>(List.of(webhook));
-            WebhookListGetVm expected = new WebhookListGetVm();
+            WebhookListGetVm expected = WebhookListGetVm.builder().build();
 
             when(webhookRepository.findAll(any(PageRequest.class))).thenReturn(page);
             when(webhookMapper.toWebhookListGetVm(page, 0, 10)).thenReturn(expected);
@@ -119,7 +119,7 @@ class WebhookServiceTest {
         @DisplayName("Should return empty pageable webhooks")
         void testGetPageableWebhooks_shouldReturnEmptyPageableWebhooks() {
             Page<Webhook> emptyPage = new PageImpl<>(List.of());
-            WebhookListGetVm expected = new WebhookListGetVm();
+            WebhookListGetVm expected = WebhookListGetVm.builder().build();
 
             when(webhookRepository.findAll(any(PageRequest.class))).thenReturn(emptyPage);
             when(webhookMapper.toWebhookListGetVm(emptyPage, 0, 10)).thenReturn(expected);
@@ -366,10 +366,11 @@ class WebhookServiceTest {
             notification.setId(1L);
             notification.setNotificationStatus(NotificationStatus.NOTIFYING);
 
-            WebhookEventNotificationDto notificationDto = new WebhookEventNotificationDto();
-            notificationDto.setNotificationId(1L);
-            notificationDto.setUrl("http://localhost:8080/webhook");
-            notificationDto.setSecret("secret-key");
+            WebhookEventNotificationDto notificationDto = WebhookEventNotificationDto.builder()
+                .notificationId(1L)
+                .url("http://localhost:8080/webhook")
+                .secret("secret-key")
+                .build();
 
             when(webhookEventNotificationRepository.findById(1L)).thenReturn(Optional.of(notification));
             when(webhookEventNotificationRepository.save(notification)).thenReturn(notification);
@@ -388,10 +389,11 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should throw exception when notification not found")
         void testNotifyToWebhook_shouldThrowExceptionWhenNotificationNotFound() {
-            WebhookEventNotificationDto notificationDto = new WebhookEventNotificationDto();
-            notificationDto.setNotificationId(999L);
-            notificationDto.setUrl("http://localhost:8080/webhook");
-            notificationDto.setSecret("secret-key");
+            WebhookEventNotificationDto notificationDto = WebhookEventNotificationDto.builder()
+                .notificationId(999L)
+                .url("http://localhost:8080/webhook")
+                .secret("secret-key")
+                .build();
 
             when(webhookEventNotificationRepository.findById(999L)).thenReturn(Optional.empty());
 
