@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -168,15 +167,17 @@ class ViewModelsTest {
         @DisplayName("Should create ProductDetailVm with all fields")
         void testCreateProductDetailVmFull() {
             // Arrange
-            LocalDateTime now = LocalDateTime.now();
             List<ImageVm> images = new ArrayList<>();
             images.add(new ImageVm(1L, "http://example.com/img1.jpg"));
+            ImageVm thumbnail = new ImageVm(2L, "http://example.com/thumbnail.jpg");
 
             // Act
             ProductDetailVm product = new ProductDetailVm(
                     123L, "Test Product", "Short desc", "Full description", "Specifications",
                     "SKU-123", "GTIN-456", "test-product", true, true, true, true,
-                    100.0, 90.0, 85.0, null, null, null, null, null, images, now
+                    true, 100.0, 1L, new ArrayList<>(), "Meta Title", "Meta Keywords", 
+                    "Meta Description", 1L, "Brand Name", new ArrayList<>(), new ArrayList<>(), 
+                    thumbnail, images
             );
 
             // Assert
@@ -184,75 +185,67 @@ class ViewModelsTest {
             assertEquals(123L, product.id(), "Product ID should match");
             assertEquals("Test Product", product.name(), "Product name should match");
             assertEquals(100.0, product.price(), "Product price should match");
-            assertEquals(1, product.images().size(), "Images list should have 1 element");
+            assertEquals(1, product.productImages().size(), "Images list should have 1 element");
         }
 
         @Test
         @DisplayName("Should create ProductDetailVm with minimal fields")
         void testCreateProductDetailVmMinimal() {
             // Arrange
-            LocalDateTime now = LocalDateTime.now();
             List<ImageVm> emptyImages = new ArrayList<>();
 
             // Act
             ProductDetailVm product = new ProductDetailVm(
                     456L, "Minimal Product", null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null,
-                    null, emptyImages, now
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, emptyImages
             );
 
             // Assert
             assertNotNull(product, "ProductDetailVm should not be null");
             assertEquals(456L, product.id(), "Product ID should match");
             assertEquals("Minimal Product", product.name(), "Product name should match");
-            assertEquals(0, product.images().size(), "Images list should be empty");
+            assertEquals(0, product.productImages().size(), "Images list should be empty");
         }
 
         @Test
         @DisplayName("Should handle ProductDetailVm with all boolean flags true")
         void testProductDetailVmWithAllTrueFlags() {
-            // Arrange
-            LocalDateTime now = LocalDateTime.now();
-
-            // Act
+            // Arrange - Act
             ProductDetailVm product = new ProductDetailVm(
                     789L, "Enabled Product", null, null, null, null, null, null,
-                    true, true, true, true, null, null, null, null, null, null, null,
-                    null, new ArrayList<>(), now
+                    true, true, true, true, true, null, null, null, null, null, null,
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
             // Assert
             assertEquals(true, product.isAllowedToOrder(), "isAllowedToOrder should be true");
             assertEquals(true, product.isPublished(), "isPublished should be true");
             assertEquals(true, product.isFeatured(), "isFeatured should be true");
-            assertEquals(true, product.isVisibleIndividually(), "isVisibleIndividually should be true");
+            assertEquals(true, product.isVisible(), "isVisible should be true");
         }
 
         @Test
         @DisplayName("Should handle ProductDetailVm with all boolean flags false")
         void testProductDetailVmWithAllFalseFlags() {
-            // Arrange
-            LocalDateTime now = LocalDateTime.now();
-
-            // Act
+            // Arrange - Act
             ProductDetailVm product = new ProductDetailVm(
                     999L, "Disabled Product", null, null, null, null, null, null,
-                    false, false, false, false, null, null, null, null, null, null, null,
-                    null, new ArrayList<>(), now
+                    false, false, false, false, false, null, null, null, null, null, null,
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
             // Assert
             assertEquals(false, product.isAllowedToOrder(), "isAllowedToOrder should be false");
             assertEquals(false, product.isPublished(), "isPublished should be false");
             assertEquals(false, product.isFeatured(), "isFeatured should be false");
-            assertEquals(false, product.isVisibleIndividually(), "isVisibleIndividually should be false");
+            assertEquals(false, product.isVisible(), "isVisible should be false");
         }
 
         @Test
         @DisplayName("Should handle ProductDetailVm with multiple images")
         void testProductDetailVmWithMultipleImages() {
             // Arrange
-            LocalDateTime now = LocalDateTime.now();
             List<ImageVm> images = new ArrayList<>();
             images.add(new ImageVm(1L, "http://example.com/img1.jpg"));
             images.add(new ImageVm(2L, "http://example.com/img2.jpg"));
@@ -262,45 +255,42 @@ class ViewModelsTest {
             ProductDetailVm product = new ProductDetailVm(
                     111L, "Multi-Image Product", null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null,
-                    null, images, now
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, images
             );
 
             // Assert
-            assertEquals(3, product.images().size(), "Product should have 3 images");
-            assertEquals("http://example.com/img1.jpg", product.images().get(0).url(), 
+            assertEquals(3, product.productImages().size(), "Product should have 3 images");
+            assertEquals("http://example.com/img1.jpg", product.productImages().get(0).url(), 
                     "First image URL should match");
-            assertEquals("http://example.com/img3.jpg", product.images().get(2).url(), 
+            assertEquals("http://example.com/img3.jpg", product.productImages().get(2).url(), 
                     "Third image URL should match");
         }
 
         @Test
         @DisplayName("Should handle ProductDetailVm with various price values")
         void testProductDetailVmWithVariousPrices() {
-            // Arrange
-            LocalDateTime now = LocalDateTime.now();
-
             // Act & Assert
             // Test zero price
             ProductDetailVm zeroPriceProduct = new ProductDetailVm(
                     200L, "Free Product", null, null, null, null, null, null,
-                    null, null, null, null, 0.0, null, null, null, null, null, null,
-                    null, new ArrayList<>(), now
+                    null, null, null, null, null, 0.0, null, null, null, null, null,
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
             assertEquals(0.0, zeroPriceProduct.price(), "Zero price should be handled");
 
             // Test high price
             ProductDetailVm highPriceProduct = new ProductDetailVm(
                     201L, "Expensive Product", null, null, null, null, null, null,
-                    null, null, null, null, 99999.99, null, null, null, null, null, null,
-                    null, new ArrayList<>(), now
+                    null, null, null, null, null, 99999.99, null, null, null, null, null,
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
             assertEquals(99999.99, highPriceProduct.price(), "High price should be handled");
 
             // Test decimal price
             ProductDetailVm decimalProduct = new ProductDetailVm(
                     202L, "Decimal Product", null, null, null, null, null, null,
-                    null, null, null, null, 123.456, null, null, null, null, null, null,
-                    null, new ArrayList<>(), now
+                    null, null, null, null, null, 123.456, null, null, null, null, null,
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
             assertEquals(123.456, decimalProduct.price(), "Decimal price should be handled");
         }
@@ -309,19 +299,18 @@ class ViewModelsTest {
         @DisplayName("Should verify ProductDetailVm record equality")
         void testProductDetailVmEquality() {
             // Arrange
-            LocalDateTime now = LocalDateTime.now();
             List<ImageVm> images = new ArrayList<>();
 
             // Act
             ProductDetailVm product1 = new ProductDetailVm(
                     300L, "Same Product", null, null, null, null, null, null,
-                    null, null, null, null, 100.0, null, null, null, null, null, null,
-                    null, images, now
+                    null, null, null, null, null, 100.0, null, null, null, null, null,
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, images
             );
             ProductDetailVm product2 = new ProductDetailVm(
                     300L, "Same Product", null, null, null, null, null, null,
-                    null, null, null, null, 100.0, null, null, null, null, null, null,
-                    null, images, now
+                    null, null, null, null, null, 100.0, null, null, null, null, null,
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, images
             );
 
             // Assert
@@ -337,14 +326,13 @@ class ViewModelsTest {
         @DisplayName("Should handle ProductDetailVm with very long text fields")
         void testProductDetailVmWithLongText() {
             // Arrange
-            LocalDateTime now = LocalDateTime.now();
             String longText = "a".repeat(1000);
 
             // Act
             ProductDetailVm product = new ProductDetailVm(
                     400L, longText, longText, longText, longText, longText, longText, longText,
                     null, null, null, null, null, null, null, null, null, null, null,
-                    null, new ArrayList<>(), now
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
             // Assert
@@ -356,14 +344,13 @@ class ViewModelsTest {
         @DisplayName("Should handle ProductDetailVm with special characters in text")
         void testProductDetailVmWithSpecialCharacters() {
             // Arrange
-            LocalDateTime now = LocalDateTime.now();
             String specialText = "Product @#$%^&*() <script>alert('xss')</script> テスト";
 
             // Act
             ProductDetailVm product = new ProductDetailVm(
                     500L, specialText, null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null,
-                    null, new ArrayList<>(), now
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
             // Assert
@@ -373,14 +360,11 @@ class ViewModelsTest {
         @Test
         @DisplayName("Should handle ProductDetailVm with very large product ID")
         void testProductDetailVmWithLargeId() {
-            // Arrange
-            LocalDateTime now = LocalDateTime.now();
-
             // Act
             ProductDetailVm product = new ProductDetailVm(
                     Long.MAX_VALUE, "Large ID Product", null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null,
-                    null, new ArrayList<>(), now
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
             // Assert
