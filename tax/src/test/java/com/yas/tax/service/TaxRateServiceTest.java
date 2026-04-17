@@ -123,9 +123,9 @@ public class TaxRateServiceTest {
         @Test
         @DisplayName("Should successfully create tax rate with valid tax class")
         void testCreateTaxRate_shouldSuccessfullyCreate() {
-            // Arrange
+            // Arrange - use explicit taxClassId 1L to match mock setup
             TaxRatePostVm postVm = new TaxRatePostVm(
-                10.0, "12345", 100L, 1L, taxClass.getId()
+                10.0, "12345", 100L, 1L, 1L
             );
             when(taxRateRepository.save(any(TaxRate.class))).thenReturn(taxRate);
             
@@ -159,9 +159,9 @@ public class TaxRateServiceTest {
         @Test
         @DisplayName("Should successfully update tax rate with valid data")
         void testUpdateTaxRate_shouldSuccessfullyUpdate() {
-            // Arrange
+            // Arrange - use explicit taxClassId 1L to match mock setup
             TaxRatePostVm postVm = new TaxRatePostVm(
-                15.0, "54321", 200L, 1L, taxClass.getId()
+                15.0, "54321", 200L, 1L, 1L
             );
             when(taxRateRepository.findById(1L)).thenReturn(Optional.of(taxRate));
             
