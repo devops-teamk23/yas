@@ -45,13 +45,13 @@ class ProductServiceTest {
     private RecommendationConfig config;
 
     @Mock
-    private RequestHeadersUriSpec<?> requestUriSpec;
+    private RestClient.RequestHeadersUriSpec requestUriSpec;
 
     @Mock
-    private RequestHeadersSpec<?> requestHeadersSpec;
+    private RestClient.RequestHeadersSpec requestHeadersSpec;
 
     @Mock
-    private ResponseSpec responseSpec;
+    private RestClient.ResponseSpec responseSpec;
 
     private ProductService productService;
 
