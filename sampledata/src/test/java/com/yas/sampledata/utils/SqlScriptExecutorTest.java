@@ -63,7 +63,7 @@ class SqlScriptExecutorTest {
 
     @Test
     @DisplayName("Should close connection after execution")
-    throws SQLException {
+    void testCloseConnectionAfterExecution() throws SQLException {
         // Arrange
         when(mockDataSource.getConnection()).thenReturn(mockConnection);
 
@@ -77,7 +77,7 @@ class SqlScriptExecutorTest {
 
     @Test
     @DisplayName("Should set correct schema on connection")
-    throws SQLException {
+    void testSetCorrectSchemaOnConnection() throws SQLException {
         // Arrange
         String schemaName = "custom_schema";
         when(mockDataSource.getConnection()).thenReturn(mockConnection);
