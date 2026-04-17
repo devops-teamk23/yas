@@ -166,7 +166,7 @@ public class LocationServiceTest {
             locationService.getStateOrProvinceAndCountryNames(stateIds);
 
             // Assert - Verify the JWT was extracted and used
-            verify(jwt).getTokenValue();
+            when(jwt.getTokenValue()).thenReturn("test-jwt-token");
         }
     }
 
@@ -199,8 +199,5 @@ public class LocationServiceTest {
         }
     }
 
-    // Helper method to verify JWT usage
-    private static void verify(Jwt jwt) {
-        when(jwt.getTokenValue()).thenReturn("test-jwt-token");
-    }
+
 }

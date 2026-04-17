@@ -43,9 +43,8 @@ public class TaxClassServiceTest {
     @BeforeEach
     void setUp() {
         taxClass = Instancio.of(TaxClass.class)
-            .set(java.lang.reflect.Field.class, 1L) // Set ID to 1
+            .set(field("id"), 1L)
             .create();
-        taxClass.setId(1L);
         taxClass.setName("Electronics");
     }
 
@@ -113,7 +112,7 @@ public class TaxClassServiceTest {
         @DisplayName("Should successfully create tax class with unique name")
         void testCreate_shouldSuccessfullyCreateWithUniqueName() {
             // Arrange
-            TaxClassPostVm postVm = new TaxClassPostVm("Books");
+            TaxClassPostVm postVm = new TaxClassPostVm("1", "Books");
             when(taxClassRepository.existsByName("Books")).thenReturn(false);
             when(taxClassRepository.save(any(TaxClass.class))).thenReturn(taxClass);
             
@@ -129,7 +128,7 @@ public class TaxClassServiceTest {
         @DisplayName("Should throw DuplicatedException when name already exists")
         void testCreate_shouldThrowDuplicatedExceptionWhenNameExists() {
             // Arrange
-            TaxClassPostVm postVm = new TaxClassPostVm("Electronics");
+            TaxClassPostVm postVm = new TaxClassPostVm("1", "Electronics");
             when(taxClassRepository.existsByName("Electronics")).thenReturn(true);
             
             // Act & Assert
@@ -143,7 +142,7 @@ public class TaxClassServiceTest {
         @DisplayName("Should handle case-sensitive duplicate check")
         void testCreate_shouldHandleCaseSensitiveDuplicateCheck() {
             // Arrange
-            TaxClassPostVm postVm = new TaxClassPostVm("electronics");
+            TaxClassPostVm postVm = new TaxClassPostVm("1", "electronics");
             when(taxClassRepository.existsByName("electronics")).thenReturn(false);
             when(taxClassRepository.save(any(TaxClass.class))).thenReturn(taxClass);
             
@@ -162,7 +161,7 @@ public class TaxClassServiceTest {
         @DisplayName("Should successfully update tax class with unique name")
         void testUpdate_shouldSuccessfullyUpdateWithUniqueName() {
             // Arrange
-            TaxClassPostVm postVm = new TaxClassPostVm("Updated Electronics");
+            TaxClassPostVm postVm = new TaxClassPostVm("1", "Updated Electronics");
             when(taxClassRepository.findById(1L)).thenReturn(Optional.of(taxClass));
             when(taxClassRepository.existsByNameNotUpdatingTaxClass("Updated Electronics", 1L))
                 .thenReturn(false);
@@ -179,7 +178,7 @@ public class TaxClassServiceTest {
         @DisplayName("Should throw NotFoundException when tax class not found")
         void testUpdate_shouldThrowNotFoundExceptionWhenNotFound() {
             // Arrange
-            TaxClassPostVm postVm = new TaxClassPostVm("Updated Name");
+            TaxClassPostVm postVm = new TaxClassPostVm("1", "Updated Name");
             when(taxClassRepository.findById(999L)).thenReturn(Optional.empty());
             
             // Act & Assert
@@ -191,7 +190,7 @@ public class TaxClassServiceTest {
         @DisplayName("Should throw DuplicatedException when name already used by another record")
         void testUpdate_shouldThrowDuplicatedExceptionWhenNameUsedByAnother() {
             // Arrange
-            TaxClassPostVm postVm = new TaxClassPostVm("Already Used Name");
+            TaxClassPostVm postVm = new TaxClassPostVm("1", "Already Used Name");
             when(taxClassRepository.findById(1L)).thenReturn(Optional.of(taxClass));
             when(taxClassRepository.existsByNameNotUpdatingTaxClass("Already Used Name", 1L))
                 .thenReturn(true);
@@ -205,7 +204,7 @@ public class TaxClassServiceTest {
         @DisplayName("Should allow same name during update (itself)")
         void testUpdate_shouldAllowSameNameDuringUpdate() {
             // Arrange
-            TaxClassPostVm postVm = new TaxClassPostVm("Electronics");
+            TaxClassPostVm postVm = new TaxClassPostVm("1", "Electronics");
             when(taxClassRepository.findById(1L)).thenReturn(Optional.of(taxClass));
             when(taxClassRepository.existsByNameNotUpdatingTaxClass("Electronics", 1L))
                 .thenReturn(false);
@@ -256,11 +255,11 @@ public class TaxClassServiceTest {
             TaxClassListGetVm result = taxClassService.getPageableTaxClasses(0, 10);
             
             // Assert
-            assertThat(result.getTaxClasses()).hasSize(1);
-            assertThat(result.getPageNo()).isEqualTo(0);
-            assertThat(result.getPageSize()).isEqualTo(10);
-            assertThat(result.getTotalElements()).isEqualTo(1);
-            assertThat(result.getTotalPages()).isEqualTo(1);
+            assertThat(result.taxClassContent()).hasSize(1);
+            assertThat(result.pageNo()).isEqualTo(0);
+            assertThat(result.pageSize()).isEqualTo(10);
+            assertThat(result.totalElements()).isEqualTo(1);
+            assertThat(result.totalPages()).isEqualTo(1);
             assertThat(result.isLast()).isTrue();
         }
 
@@ -275,8 +274,8 @@ public class TaxClassServiceTest {
             TaxClassListGetVm result = taxClassService.getPageableTaxClasses(0, 10);
             
             // Assert
-            assertThat(result.getTaxClasses()).isEmpty();
-            assertThat(result.getTotalElements()).isEqualTo(0);
+            assertThat(result.taxClassContent()).isEmpty();
+            assertThat(result.totalElements()).isEqualTo(0);
         }
     }
 }

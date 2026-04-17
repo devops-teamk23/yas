@@ -230,7 +230,9 @@ public class TaxRateServiceTest {
         @Test
         @DisplayName("Should return tax percent when found")
         void testGetTaxPercent_shouldReturnTaxPercentWhenFound() {
-            when(taxRateRepository.findTaxPercentByStateAndCountry(1L, 100L, 1L, "12345"))
+            // Service signature: getTaxPercent(taxClassId, countryId, stateOrProvinceId, zipCode)
+            // Repository is called with: getTaxPercent(countryId, stateOrProvinceId, zipCode, taxClassId)
+            when(taxRateRepository.getTaxPercent(100L, 1L, "12345", 1L))
                 .thenReturn(10.0);
             
             Double result = taxRateService.getTaxPercent(1L, 100L, 1L, "12345");
@@ -241,7 +243,7 @@ public class TaxRateServiceTest {
         @Test
         @DisplayName("Should return 0 when tax percent not found")
         void testGetTaxPercent_shouldReturnZeroWhenNotFound() {
-            when(taxRateRepository.findTaxPercentByStateAndCountry(1L, 100L, 1L, "12345"))
+            when(taxRateRepository.getTaxPercent(100L, 1L, "12345", 1L))
                 .thenReturn(null);
             
             Double result = taxRateService.getTaxPercent(1L, 100L, 1L, "12345");
@@ -258,7 +260,7 @@ public class TaxRateServiceTest {
         void testGetPageableTaxRates_shouldReturnPaginatedResults() {
             // Arrange
             Page<TaxRate> page = new PageImpl<>(List.of(taxRate), PageRequest.of(0, 10), 1);
-            when(taxRateRepository.findAll(any())).thenReturn(page);
+            when(taxRateRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
             
             StateOrProvinceAndCountryGetNameVm locationVm = new StateOrProvinceAndCountryGetNameVm(
                 100L, "California", "United States"
@@ -271,7 +273,7 @@ public class TaxRateServiceTest {
             
             // Assert
             assertThat(result).isNotNull();
-            assertThat(result.getTaxRateGetDetailVms()).hasSize(1);
+            assertThat(result.taxRateGetDetailContent()).hasSize(1);
         }
 
         @Test
@@ -279,13 +281,13 @@ public class TaxRateServiceTest {
         void testGetPageableTaxRates_shouldReturnEmptyPageWhenNoResults() {
             // Arrange
             Page<TaxRate> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
-            when(taxRateRepository.findAll(any())).thenReturn(emptyPage);
+            when(taxRateRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(emptyPage);
             
             // Act
             TaxRateListGetVm result = taxRateService.getPageableTaxRates(0, 10);
             
             // Assert
-            assertThat(result.getTaxRateGetDetailVms()).isEmpty();
+            assertThat(result.taxRateGetDetailContent()).isEmpty();
         }
     }
 }
