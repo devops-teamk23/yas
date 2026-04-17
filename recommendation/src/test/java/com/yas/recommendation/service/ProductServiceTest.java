@@ -13,7 +13,6 @@ import com.yas.recommendation.configuration.RecommendationConfig;
 import com.yas.recommendation.viewmodel.ImageVm;
 import com.yas.recommendation.viewmodel.ProductDetailVm;
 import java.net.URI;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -140,8 +139,11 @@ class ProductServiceTest {
                     null,
                     null,
                     null,
+                    null,
                     new ArrayList<>(),
-                    LocalDateTime.now()
+                    new ArrayList<>(),
+                    null,
+                    new ArrayList<>()
             );
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
@@ -170,7 +172,7 @@ class ProductServiceTest {
             ProductDetailVm minimalProduct = new ProductDetailVm(
                     productId, "Minimal Product", null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null,
-                    null, new ArrayList<>(), LocalDateTime.now()
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
@@ -267,7 +269,7 @@ class ProductServiceTest {
             ProductDetailVm product = new ProductDetailVm(
                     productId, "Disabled Product", null, null, null, null, null, null,
                     false, false, false, false, null, null, null, null, null, null, null,
-                    null, new ArrayList<>(), LocalDateTime.now()
+                    null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
@@ -468,8 +470,11 @@ class ProductServiceTest {
                 null,
                 null,
                 null,
+                null,
                 new ArrayList<>(),
-                LocalDateTime.now()
+                new ArrayList<>(),
+                null,
+                new ArrayList<>()
         );
     }
 }
