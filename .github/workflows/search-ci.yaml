@@ -30,23 +30,23 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/workflows/actions
-      
+
       # Build and install dependencies
       - name: Build and Install Dependencies
         run: mvn clean install -DskipTests
-      
+
       # Security: Gitleaks scan
       - name: Run Gitleaks Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: ./.github/workflows/gitleak
         with:
           version: v8.18.4
-      
+
       # Code quality: Checkstyle
       - name: Run Maven Checkstyle
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         run: mvn checkstyle:checkstyle -pl search -am -Dcheckstyle.output.file=search/target/search-checkstyle-result.xml
-      
+
       - name: Upload Checkstyle Result
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: jwgmeligmeyling/checkstyle-github-action@master
@@ -62,21 +62,21 @@ jobs:
           json: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      
+
       - name: Upload Snyk Results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: actions/upload-artifact@master
         with:
           name: Snyk Security Report
           path: snyk-results.json
-      
+
       # Code quality: SonarQube
       - name: Analyze with sonar cloud
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f search
-      
+
       # Security: OWASP Dependency Check
       - name: OWASP Dependency Check
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
@@ -87,7 +87,7 @@ jobs:
           project: "yas"
           path: "."
           format: "HTML"
-      
+
       - name: Upload OWASP Dependency Check results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: actions/upload-artifact@master
@@ -106,7 +106,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/workflows/actions
-      
+
       # Run unit tests
       - name: Run Maven Tests
         run: mvn test -pl search -am -U
@@ -119,7 +119,7 @@ jobs:
           name: Search-Service-Unit-Test-Results
           path: "search/**/*-reports/TEST*.xml"
           reporter: java-junit
-      
+
       # Coverage report to PR
       - name: Add coverage report to PR
         uses: madrapps/jacoco-report@v1.6.1
@@ -131,7 +131,7 @@ jobs:
           min-coverage-changed-files: 60
           title: "Search Coverage Report"
           update-comment: true
-      
+
       # Upload coverage artifacts
       - name: Upload Coverage Report
         if: success()
@@ -151,11 +151,11 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/workflows/actions
-      
+
       # Maven build
       - name: Run Maven Build Command
         run: mvn package -DskipTests -pl search -am -U
-      
+
       # Docker login (only on main branch)
       - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -164,7 +164,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       # Docker build & push (only on main branch)
       - name: Build and push Docker images
         if: ${{ github.ref == 'refs/heads/main' }}
