@@ -39,6 +39,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("WebhookService Tests")
@@ -86,8 +87,13 @@ class WebhookServiceTest {
         event = new Event();
         event.setId(1L);
 
-        webhookVm = WebhookVm.builder().id(1L).payloadUrl("http://localhost:8080/webhook").build();
-        webhookDetailVm = WebhookDetailVm.builder().id(1L).payloadUrl("http://localhost:8080/webhook").build();
+        webhookVm = new WebhookVm();
+        webhookVm.setId(1L);
+        webhookVm.setPayloadUrl("http://localhost:8080/webhook");
+
+        webhookDetailVm = new WebhookDetailVm();
+        webhookDetailVm.setId(1L);
+        webhookDetailVm.setPayloadUrl("http://localhost:8080/webhook");
     }
 
     @Nested
@@ -97,7 +103,7 @@ class WebhookServiceTest {
         @DisplayName("Should return pageable webhooks")
         void testGetPageableWebhooks_shouldReturnPageableWebhooks() {
             Page<Webhook> page = new PageImpl<>(List.of(webhook));
-            WebhookListGetVm expected = WebhookListGetVm.builder().build();
+            WebhookListGetVm expected = new WebhookListGetVm();
 
             when(webhookRepository.findAll(any(PageRequest.class))).thenReturn(page);
             when(webhookMapper.toWebhookListGetVm(page, 0, 10)).thenReturn(expected);
@@ -113,7 +119,7 @@ class WebhookServiceTest {
         @DisplayName("Should return empty pageable webhooks")
         void testGetPageableWebhooks_shouldReturnEmptyPageableWebhooks() {
             Page<Webhook> emptyPage = new PageImpl<>(List.of());
-            WebhookListGetVm expected = WebhookListGetVm.builder().build();
+            WebhookListGetVm expected = new WebhookListGetVm();
 
             when(webhookRepository.findAll(any(PageRequest.class))).thenReturn(emptyPage);
             when(webhookMapper.toWebhookListGetVm(emptyPage, 0, 10)).thenReturn(expected);
@@ -131,20 +137,20 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should return all webhooks")
         void testFindAllWebhooks_shouldReturnAllWebhooks() {
-            when(webhookRepository.findAll(any())).thenReturn(List.of(webhook));
+            when(webhookRepository.findAll(any(Sort.class))).thenReturn(List.of(webhook));
             when(webhookMapper.toWebhookVm(webhook)).thenReturn(webhookVm);
 
             List<WebhookVm> result = webhookService.findAllWebhooks();
 
             assertThat(result).isNotNull().hasSize(1);
             assertThat(result.get(0).getId()).isEqualTo(1L);
-            verify(webhookRepository).findAll(any());
+            verify(webhookRepository).findAll(any(Sort.class));
         }
 
         @Test
         @DisplayName("Should return empty list when no webhooks exist")
         void testFindAllWebhooks_shouldReturnEmptyList() {
-            when(webhookRepository.findAll(any())).thenReturn(List.of());
+            when(webhookRepository.findAll(any(Sort.class))).thenReturn(List.of());
 
             List<WebhookVm> result = webhookService.findAllWebhooks();
 
@@ -185,10 +191,9 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should successfully create webhook without events")
         void testCreate_shouldSuccessfullyCreateWebhookWithoutEvents() {
-            WebhookPostVm postVm = WebhookPostVm.builder()
-                .payloadUrl("http://localhost:8080/webhook")
-                .secret("secret-key")
-                .build();
+            WebhookPostVm postVm = new WebhookPostVm();
+            postVm.setPayloadUrl("http://localhost:8080/webhook");
+            postVm.setSecret("secret-key");
 
             when(webhookMapper.toCreatedWebhook(postVm)).thenReturn(webhook);
             when(webhookRepository.save(webhook)).thenReturn(webhook);
@@ -204,11 +209,12 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should successfully create webhook with events")
         void testCreate_shouldSuccessfullyCreateWebhookWithEvents() {
-            WebhookPostVm postVm = WebhookPostVm.builder()
-                .payloadUrl("http://localhost:8080/webhook")
-                .secret("secret-key")
-                .events(List.of(EventVm.builder().id(1L).build()))
-                .build();
+            EventVm eventVm = new EventVm();
+            eventVm.setId(1L);
+            WebhookPostVm postVm = new WebhookPostVm();
+            postVm.setPayloadUrl("http://localhost:8080/webhook");
+            postVm.setSecret("secret-key");
+            postVm.setEvents(List.of(eventVm));
 
             when(webhookMapper.toCreatedWebhook(postVm)).thenReturn(webhook);
             when(webhookRepository.save(webhook)).thenReturn(webhook);
@@ -227,11 +233,12 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should throw NotFoundException when event not found during create")
         void testCreate_shouldThrowNotFoundExceptionWhenEventNotFound() {
-            WebhookPostVm postVm = WebhookPostVm.builder()
-                .payloadUrl("http://localhost:8080/webhook")
-                .secret("secret-key")
-                .events(List.of(EventVm.builder().id(999L).build()))
-                .build();
+            EventVm eventVm = new EventVm();
+            eventVm.setId(999L);
+            WebhookPostVm postVm = new WebhookPostVm();
+            postVm.setPayloadUrl("http://localhost:8080/webhook");
+            postVm.setSecret("secret-key");
+            postVm.setEvents(List.of(eventVm));
 
             when(webhookMapper.toCreatedWebhook(postVm)).thenReturn(webhook);
             when(webhookRepository.save(webhook)).thenReturn(webhook);
@@ -248,10 +255,9 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should successfully update webhook without events")
         void testUpdate_shouldSuccessfullyUpdateWebhookWithoutEvents() {
-            WebhookPostVm postVm = WebhookPostVm.builder()
-                .payloadUrl("http://localhost:8080/webhook-updated")
-                .secret("secret-key-updated")
-                .build();
+            WebhookPostVm postVm = new WebhookPostVm();
+            postVm.setPayloadUrl("http://localhost:8080/webhook-updated");
+            postVm.setSecret("secret-key-updated");
 
             webhook.setWebhookEvents(List.of());
 
@@ -269,11 +275,12 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should successfully update webhook with events")
         void testUpdate_shouldSuccessfullyUpdateWebhookWithEvents() {
-            WebhookPostVm postVm = WebhookPostVm.builder()
-                .payloadUrl("http://localhost:8080/webhook-updated")
-                .secret("secret-key-updated")
-                .events(List.of(EventVm.builder().id(1L).build()))
-                .build();
+            EventVm eventVm = new EventVm();
+            eventVm.setId(1L);
+            WebhookPostVm postVm = new WebhookPostVm();
+            postVm.setPayloadUrl("http://localhost:8080/webhook-updated");
+            postVm.setSecret("secret-key-updated");
+            postVm.setEvents(List.of(eventVm));
 
             webhook.setWebhookEvents(List.of(webhookEvent));
 
@@ -294,7 +301,7 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should throw NotFoundException when webhook not found during update")
         void testUpdate_shouldThrowNotFoundExceptionWhenWebhookNotFound() {
-            WebhookPostVm postVm = WebhookPostVm.builder().build();
+            WebhookPostVm postVm = new WebhookPostVm();
 
             when(webhookRepository.findById(999L)).thenReturn(Optional.empty());
 
@@ -306,9 +313,10 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should throw NotFoundException when event not found during update")
         void testUpdate_shouldThrowNotFoundExceptionWhenEventNotFound() {
-            WebhookPostVm postVm = WebhookPostVm.builder()
-                .events(List.of(EventVm.builder().id(999L).build()))
-                .build();
+            EventVm eventVm = new EventVm();
+            eventVm.setId(999L);
+            WebhookPostVm postVm = new WebhookPostVm();
+            postVm.setEvents(List.of(eventVm));
 
             webhook.setWebhookEvents(List.of());
 
@@ -358,11 +366,10 @@ class WebhookServiceTest {
             notification.setId(1L);
             notification.setNotificationStatus(NotificationStatus.NOTIFYING);
 
-            WebhookEventNotificationDto notificationDto = WebhookEventNotificationDto.builder()
-                .notificationId(1L)
-                .url("http://localhost:8080/webhook")
-                .secret("secret-key")
-                .build();
+            WebhookEventNotificationDto notificationDto = new WebhookEventNotificationDto();
+            notificationDto.setNotificationId(1L);
+            notificationDto.setUrl("http://localhost:8080/webhook");
+            notificationDto.setSecret("secret-key");
 
             when(webhookEventNotificationRepository.findById(1L)).thenReturn(Optional.of(notification));
             when(webhookEventNotificationRepository.save(notification)).thenReturn(notification);
@@ -381,11 +388,10 @@ class WebhookServiceTest {
         @Test
         @DisplayName("Should throw exception when notification not found")
         void testNotifyToWebhook_shouldThrowExceptionWhenNotificationNotFound() {
-            WebhookEventNotificationDto notificationDto = WebhookEventNotificationDto.builder()
-                .notificationId(999L)
-                .url("http://localhost:8080/webhook")
-                .secret("secret-key")
-                .build();
+            WebhookEventNotificationDto notificationDto = new WebhookEventNotificationDto();
+            notificationDto.setNotificationId(999L);
+            notificationDto.setUrl("http://localhost:8080/webhook");
+            notificationDto.setSecret("secret-key");
 
             when(webhookEventNotificationRepository.findById(999L)).thenReturn(Optional.empty());
 
