@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -85,23 +86,25 @@ class ViewModelsTest {
     }
 
     @Nested
-    @DisplayName("RelatedProductVm Record Tests")
+    @DisplayName("RelatedProductVm POJO Tests")
     class RelatedProductVmTests {
 
         @Test
-        @DisplayName("Should create RelatedProductVm with all fields")
+        @DisplayName("Should create and set RelatedProductVm fields")
         void testCreateRelatedProductVm() {
             // Act
-            RelatedProductVm relatedProduct = new RelatedProductVm(
-                    123L, "Related Product", "related-product", 99.99, true, true
-            );
+            RelatedProductVm relatedProduct = new RelatedProductVm();
+            relatedProduct.setProductId(123L);
+            relatedProduct.setName("Related Product");
+            relatedProduct.setPrice(new BigDecimal("99.99"));
+            relatedProduct.setPublished(true);
+            relatedProduct.setFeatured(true);
 
             // Assert
             assertNotNull(relatedProduct, "RelatedProductVm should not be null");
-            assertEquals(123L, relatedProduct.id(), "Product ID should match");
-            assertEquals("Related Product", relatedProduct.name(), "Product name should match");
-            assertEquals("related-product", relatedProduct.slug(), "Product slug should match");
-            assertEquals(99.99, relatedProduct.price(), "Product price should match");
+            assertEquals(123L, relatedProduct.getProductId(), "Product ID should match");
+            assertEquals("Related Product", relatedProduct.getName(), "Product name should match");
+            assertEquals(new BigDecimal("99.99"), relatedProduct.getPrice(), "Product price should match");
             assertEquals(true, relatedProduct.isPublished(), "Published flag should match");
             assertEquals(true, relatedProduct.isFeatured(), "Featured flag should match");
         }
@@ -110,9 +113,11 @@ class ViewModelsTest {
         @DisplayName("Should handle RelatedProductVm with false flags")
         void testRelatedProductVmWithFalseFlags() {
             // Act
-            RelatedProductVm relatedProduct = new RelatedProductVm(
-                    456L, "Unpublished Product", "unpub-product", 50.00, false, false
-            );
+            RelatedProductVm relatedProduct = new RelatedProductVm();
+            relatedProduct.setProductId(456L);
+            relatedProduct.setName("Unpublished Product");
+            relatedProduct.setPublished(false);
+            relatedProduct.setFeatured(false);
 
             // Assert
             assertEquals(false, relatedProduct.isPublished(), "Published flag should be false");
@@ -123,39 +128,39 @@ class ViewModelsTest {
         @DisplayName("Should handle RelatedProductVm with zero price")
         void testRelatedProductVmWithZeroPrice() {
             // Act
-            RelatedProductVm relatedProduct = new RelatedProductVm(
-                    789L, "Free Product", "free-product", 0.0, true, false
-            );
+            RelatedProductVm relatedProduct = new RelatedProductVm();
+            relatedProduct.setPrice(new BigDecimal("0.0"));
 
             // Assert
-            assertEquals(0.0, relatedProduct.price(), "Price should be zero");
+            assertEquals(new BigDecimal("0.0"), relatedProduct.getPrice(), "Price should be zero");
         }
 
         @Test
         @DisplayName("Should handle RelatedProductVm with high price")
         void testRelatedProductVmWithHighPrice() {
             // Act
-            RelatedProductVm relatedProduct = new RelatedProductVm(
-                    999L, "Premium Product", "premium-product", 9999.99, true, true
-            );
+            RelatedProductVm relatedProduct = new RelatedProductVm();
+            relatedProduct.setPrice(new BigDecimal("9999.99"));
 
             // Assert
-            assertEquals(9999.99, relatedProduct.price(), "High price should be handled");
+            assertEquals(new BigDecimal("9999.99"), relatedProduct.getPrice(), "High price should be handled");
         }
 
         @Test
-        @DisplayName("Should verify RelatedProductVm record equality")
-        void testRelatedProductVmEquality() {
+        @DisplayName("Should verify multiple RelatedProductVm instances")
+        void testMultipleRelatedProductVmInstances() {
             // Act
-            RelatedProductVm product1 = new RelatedProductVm(
-                    100L, "Product A", "product-a", 100.0, true, false
-            );
-            RelatedProductVm product2 = new RelatedProductVm(
-                    100L, "Product A", "product-a", 100.0, true, false
-            );
+            RelatedProductVm product1 = new RelatedProductVm();
+            product1.setProductId(100L);
+            product1.setName("Product A");
+
+            RelatedProductVm product2 = new RelatedProductVm();
+            product2.setProductId(101L);
+            product2.setName("Product B");
 
             // Assert
-            assertEquals(product1, product2, "RelatedProductVm records with same values should be equal");
+            assertEquals("Product A", product1.getName(), "Product 1 name should match");
+            assertEquals("Product B", product2.getName(), "Product 2 name should match");
         }
     }
 
@@ -174,8 +179,8 @@ class ViewModelsTest {
             // Act
             ProductDetailVm product = new ProductDetailVm(
                     123L, "Test Product", "Short desc", "Full description", "Specifications",
-                    "SKU-123", "GTIN-456", "test-product", true, true, true, true,
-                    true, 100.0, 1L, new ArrayList<>(), "Meta Title", "Meta Keywords", 
+                    "SKU-123", "GTIN-456", "test-product", Boolean.TRUE, Boolean.TRUE, Boolean.TRUE, Boolean.TRUE,
+                    Boolean.TRUE, 100.0, 1L, new ArrayList<>(), "Meta Title", "Meta Keywords", 
                     "Meta Description", 1L, "Brand Name", new ArrayList<>(), new ArrayList<>(), 
                     thumbnail, images
             );
@@ -214,15 +219,15 @@ class ViewModelsTest {
             // Arrange - Act
             ProductDetailVm product = new ProductDetailVm(
                     789L, "Enabled Product", null, null, null, null, null, null,
-                    true, true, true, true, true, null, null, null, null, null, null,
+                    Boolean.TRUE, Boolean.TRUE, Boolean.TRUE, Boolean.TRUE, Boolean.TRUE, null, null, null, null, null, null,
                     null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
             // Assert
-            assertEquals(true, product.isAllowedToOrder(), "isAllowedToOrder should be true");
-            assertEquals(true, product.isPublished(), "isPublished should be true");
-            assertEquals(true, product.isFeatured(), "isFeatured should be true");
-            assertEquals(true, product.isVisible(), "isVisible should be true");
+            assertEquals(Boolean.TRUE, product.isAllowedToOrder(), "isAllowedToOrder should be true");
+            assertEquals(Boolean.TRUE, product.isPublished(), "isPublished should be true");
+            assertEquals(Boolean.TRUE, product.isFeatured(), "isFeatured should be true");
+            assertEquals(Boolean.TRUE, product.isVisible(), "isVisible should be true");
         }
 
         @Test
@@ -231,15 +236,15 @@ class ViewModelsTest {
             // Arrange - Act
             ProductDetailVm product = new ProductDetailVm(
                     999L, "Disabled Product", null, null, null, null, null, null,
-                    false, false, false, false, false, null, null, null, null, null, null,
+                    Boolean.FALSE, Boolean.FALSE, Boolean.FALSE, Boolean.FALSE, Boolean.FALSE, null, null, null, null, null, null,
                     null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
             // Assert
-            assertEquals(false, product.isAllowedToOrder(), "isAllowedToOrder should be false");
-            assertEquals(false, product.isPublished(), "isPublished should be false");
-            assertEquals(false, product.isFeatured(), "isFeatured should be false");
-            assertEquals(false, product.isVisible(), "isVisible should be false");
+            assertEquals(Boolean.FALSE, product.isAllowedToOrder(), "isAllowedToOrder should be false");
+            assertEquals(Boolean.FALSE, product.isPublished(), "isPublished should be false");
+            assertEquals(Boolean.FALSE, product.isFeatured(), "isFeatured should be false");
+            assertEquals(Boolean.FALSE, product.isVisible(), "isVisible should be false");
         }
 
         @Test
