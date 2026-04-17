@@ -135,10 +135,10 @@ class ProductServiceTest {
                     true,
                     true,
                     true,
+                    true,
                     100.50,
-                    90.00,
-                    85.50,
                     null,
+                    new ArrayList<>(),
                     null,
                     null,
                     null,
@@ -175,7 +175,7 @@ class ProductServiceTest {
             long productId = 111L;
             ProductDetailVm minimalProduct = new ProductDetailVm(
                     productId, "Minimal Product", null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, new ArrayList<>(), null, null, null,
                     null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
@@ -272,7 +272,7 @@ class ProductServiceTest {
             long productId = 222L;
             ProductDetailVm product = new ProductDetailVm(
                     productId, "Disabled Product", null, null, null, null, null, null,
-                    false, false, false, false, null, null, null, null, null, null, null,
+                    false, false, false, false, false, null, null, new ArrayList<>(), null, null, null,
                     null, null, new ArrayList<>(), new ArrayList<>(), null, new ArrayList<>()
             );
 
@@ -469,7 +469,7 @@ class ProductServiceTest {
                 null,
                 null,
                 null,
-                null,
+                new ArrayList<>(),
                 null,
                 null,
                 null,
