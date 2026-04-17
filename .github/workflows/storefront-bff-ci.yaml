@@ -6,7 +6,7 @@ on:
     paths:
       - "storefront-bff/**"
       - ".github/workflows/actions/action.yaml"
-      - ".github/workflows/gitleaks/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/storefront-bff-ci.yaml"
       - "pom.xml"
   pull_request:
@@ -14,184 +14,150 @@ on:
     paths:
       - "storefront-bff/**"
       - ".github/workflows/actions/action.yaml"
-      - ".github/workflows/gitleaks/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/storefront-bff-ci.yaml"
       - "pom.xml"
   workflow_dispatch:
 
 jobs:
-  # Phase 1: Security & Quality Scans
+  # ========== PHASE 1: TEST - Security scans + code quality checks ==========
   test:
-    name: Phase 1 - Security & Quality Scan
     runs-on: ubuntu-latest
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
-
     steps:
-      # Checkout code with full history for SonarQube analysis
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: ./.github/workflows/actions
 
-      # Setup Java 21 LTS + Maven (reusable composite action)
-      - name: Set up Java and Maven
-        uses: ./.github/workflows/actions
+      # Build and install dependencies
+      - name: Build and Install Dependencies
+        run: mvn clean install -DskipTests
 
-      # Install dependencies (skip tests for faster phase 1)
-      - name: Build dependencies
-        run: mvn clean install -DskipTests -q
-
-      # Gitleaks secret scanning
-      - name: Run Gitleaks scan
+      # Security: Gitleaks scan
+      - name: Run Gitleaks Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: ./.github/workflows/gitleaks
-        continue-on-error: true
+        uses: ./.github/workflows/gitleak
+        with:
+          version: v8.18.4
 
-      # Checkstyle code quality check
-      - name: Run Checkstyle
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
-        run: mvn checkstyle:checkstyle -pl storefront-bff -am -Dcheckstyle.output.file=storefront-bff/target/checkstyle-result.xml -q
+      # Code quality: Checkstyle
+      - name: Run Maven Checkstyle
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        run: mvn checkstyle:checkstyle -pl storefront-bff -am -Dcheckstyle.output.file=storefront-bff/target/storefront-bff-checkstyle-result.xml
 
-      # Upload Checkstyle results
-      - name: Upload Checkstyle results
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
+      - name: Upload Checkstyle Result
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: jwgmeligmeyling/checkstyle-github-action@master
         with:
-          path: "**/checkstyle-result.xml"
-        continue-on-error: true
+          path: "storefront-bff/target/storefront-bff-checkstyle-result.xml"
 
-      # Snyk security scan (requires SNYK_TOKEN)
-      - name: Run Snyk security scan
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
+      # Security: Snyk scan
+      - name: Run Snyk Security Scan
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: snyk/actions/maven@master
+        with:
+          args: --file=storefront-bff/pom.xml --severity-threshold=high
+          json: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          if command -v snyk &> /dev/null; then
-            snyk test --file=storefront-bff/pom.xml --json > snyk-results.json || true
-          else
-            echo "Snyk not installed, skipping scan"
-          fi
-        continue-on-error: true
 
-      # Upload Snyk results
-      - name: Upload Snyk results
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && hashFiles('snyk-results.json') != '' }}
-        uses: actions/upload-artifact@v4
+      - name: Upload Snyk Results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: actions/upload-artifact@master
         with:
-          name: snyk-report
+          name: Snyk Security Report
           path: snyk-results.json
-        continue-on-error: true
 
-      # SonarQube code quality analysis
-      - name: Analyze with SonarCloud
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
+      # Code quality: SonarQube
+      - name: Analyze with sonar cloud
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f storefront-bff -q
-        continue-on-error: true
+        run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f storefront-bff
 
-      # OWASP Dependency Check for vulnerabilities
-      - name: Run OWASP Dependency Check
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
+      # Security: OWASP Dependency Check
+      - name: OWASP Dependency Check
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: dependency-check/Dependency-Check_Action@main
         env:
           JAVA_HOME: /opt/jdk
         with:
-          project: "yas-storefront-bff"
-          path: "storefront-bff"
+          project: "yas"
+          path: "."
           format: "HTML"
-        continue-on-error: true
 
-      # Upload OWASP Dependency Check report
-      - name: Upload OWASP report
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && hashFiles('reports/**') != '' }}
-        uses: actions/upload-artifact@v4
+      - name: Upload OWASP Dependency Check results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: actions/upload-artifact@master
         with:
-          name: owasp-dependency-check-report
-          path: reports
-        continue-on-error: true
+          name: OWASP Dependency Check Report
+          path: ${{github.workspace}}/reports
 
-  # Phase 2: Unit Tests & Coverage
+  # ========== PHASE 2: RUN-UNIT-TEST - Execute tests + JaCoCo coverage ==========
   run-unit-test:
-    name: Phase 2 - Unit Tests & Coverage
     needs: test
     runs-on: ubuntu-latest
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
-
     steps:
-      # Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Setup Java 21 LTS + Maven
-      - name: Set up Java and Maven
-        uses: ./.github/workflows/actions
-
-      # Run unit tests with coverage (JaCoCo configured in pom.xml)
-      - name: Run unit tests
-        run: mvn test -pl storefront-bff -am -U -q
-        continue-on-error: false
-
-      # Publish test results to PR
-      - name: Publish test results
-        if: ${{ always() }}
-        uses: EnricoMi/publish-unit-test-result-action@v2
+      - uses: actions/checkout@v4
         with:
-          files: "storefront-bff/**/*-reports/TEST*.xml"
-          check_name: "storefront-bff Test Results"
-        continue-on-error: true
+          fetch-depth: 0
+      - uses: ./.github/workflows/actions
 
-      # Generate JaCoCo coverage report
-      - name: Generate JaCoCo coverage report
-        if: ${{ always() }}
-        run: mvn jacoco:report -pl storefront-bff -q
-        continue-on-error: true
+      # Run unit tests
+      - name: Run Maven Tests
+        run: mvn test -pl storefront-bff -am -U
 
-      # Upload coverage report to PR comment
-      - name: Comment PR with coverage report
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name == 'pull_request' && hashFiles('storefront-bff/target/site/jacoco/jacoco.xml') != '' }}
+      # Report test results
+      - name: Test Results
+        uses: dorny/test-reporter@v1
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
+        with:
+          name: Storefront-BFF-Unit-Test-Results
+          path: "storefront-bff/**/*-reports/TEST*.xml"
+          reporter: java-junit
+
+      # Coverage report to PR
+      - name: Add coverage report to PR
         uses: madrapps/jacoco-report@v1.6.1
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         with:
-          paths: ${{ github.workspace }}/storefront-bff/target/site/jacoco/jacoco.xml
-          token: ${{ secrets.GITHUB_TOKEN }}
+          paths: ${{github.workspace}}/storefront-bff/target/site/jacoco/jacoco.xml
+          token: ${{secrets.GITHUB_TOKEN}}
           min-coverage-overall: 70
           min-coverage-changed-files: 60
           title: "Storefront BFF Coverage Report"
           update-comment: true
-        continue-on-error: true
 
-      # Upload coverage artifact for archival
-      - name: Upload coverage artifact
-        if: ${{ hashFiles('storefront-bff/target/site/jacoco/*') != '' }}
-        uses: actions/upload-artifact@v4
+      # Upload coverage artifacts
+      - name: Upload Coverage Report
+        if: success()
+        uses: actions/upload-artifact@master
         with:
-          name: jacoco-coverage-report
+          name: Jacoco Coverage Report
           path: storefront-bff/target/site/jacoco/
-        continue-on-error: true
 
-  # Phase 3: Build & Docker Push
+  # ========== PHASE 3: BUILD - Package + Docker build & push ==========
   build:
-    name: Phase 3 - Build & Docker Push
     needs: run-unit-test
     runs-on: ubuntu-latest
-
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
     steps:
-      # Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/workflows/actions
 
-      # Setup Java 21 LTS + Maven
-      - name: Set up Java and Maven
-        uses: ./.github/workflows/actions
+      # Maven build
+      - name: Run Maven Build Command
+        run: mvn package -DskipTests -pl storefront-bff -am -U
 
-      # Package application (skip tests - already ran in phase 2)
-      - name: Build and package application
-        run: mvn clean package -DskipTests -pl storefront-bff -am -U -q
-
-      # Docker login (main branch only)
-      - name: Log in to Container Registry
+      # Docker login (only on main branch)
+      - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
         with:
@@ -199,8 +165,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build and push Docker image (main branch only)
-      - name: Build and push Docker image
+      # Docker build & push (only on main branch)
+      - name: Build and push Docker images
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
         with:
