@@ -23,7 +23,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClient.RequestBodyUriSpec;
+import org.springframework.web.client.RestClient.RequestHeadersUriSpec;
 import org.springframework.web.client.RestClient.RequestHeadersSpec;
 import org.springframework.web.client.RestClient.ResponseSpec;
 
@@ -77,12 +77,12 @@ public class LocationServiceTest {
             );
 
             // Mock RestClient fluent API
-            RequestBodyUriSpec requestBodyUriSpec = mock(RequestBodyUriSpec.class);
+            RequestHeadersUriSpec requestHeadersUriSpec = mock(RequestHeadersUriSpec.class);
             RequestHeadersSpec requestHeadersSpec = mock(RequestHeadersSpec.class);
             ResponseSpec responseSpec = mock(ResponseSpec.class);
 
-            when(restClient.get()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(restClient.get()).thenReturn(requestHeadersUriSpec);
+            when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.body(any(ParameterizedTypeReference.class)))
                 .thenReturn(expectedResult);
@@ -103,12 +103,12 @@ public class LocationServiceTest {
             // Arrange
             List<Long> emptyIds = List.of();
 
-            RequestBodyUriSpec requestBodyUriSpec = mock(RequestBodyUriSpec.class);
+            RequestHeadersUriSpec requestHeadersUriSpec = mock(RequestHeadersUriSpec.class);
             RequestHeadersSpec requestHeadersSpec = mock(RequestHeadersSpec.class);
             ResponseSpec responseSpec = mock(ResponseSpec.class);
 
-            when(restClient.get()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(restClient.get()).thenReturn(requestHeadersUriSpec);
+            when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.body(any(ParameterizedTypeReference.class)))
                 .thenReturn(List.of());
@@ -127,12 +127,12 @@ public class LocationServiceTest {
             // Arrange
             List<Long> stateIds = List.of(1L);
 
-            RequestBodyUriSpec requestBodyUriSpec = mock(RequestBodyUriSpec.class);
+            RequestHeadersUriSpec requestHeadersUriSpec = mock(RequestHeadersUriSpec.class);
             RequestHeadersSpec requestHeadersSpec = mock(RequestHeadersSpec.class);
             ResponseSpec responseSpec = mock(ResponseSpec.class);
 
-            when(restClient.get()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(restClient.get()).thenReturn(requestHeadersUriSpec);
+            when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.body(any(ParameterizedTypeReference.class)))
                 .thenThrow(new RuntimeException("External service error"));
@@ -152,12 +152,12 @@ public class LocationServiceTest {
                 new StateOrProvinceAndCountryGetNameVm(1L, "California", "United States")
             );
 
-            RequestBodyUriSpec requestBodyUriSpec = mock(RequestBodyUriSpec.class);
+            RequestHeadersUriSpec requestHeadersUriSpec = mock(RequestHeadersUriSpec.class);
             RequestHeadersSpec requestHeadersSpec = mock(RequestHeadersSpec.class);
             ResponseSpec responseSpec = mock(ResponseSpec.class);
 
-            when(restClient.get()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(restClient.get()).thenReturn(requestHeadersUriSpec);
+            when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.body(any(ParameterizedTypeReference.class)))
                 .thenReturn(expectedResult);
