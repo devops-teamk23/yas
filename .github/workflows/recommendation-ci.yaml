@@ -91,7 +91,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/workflows/actions
       - name: Run Maven Tests
-        run: mvn test -pl recommendation -am
+        run: mvn test -pl recommendation -am -U
 
       - name: Test Results
         uses: dorny/test-reporter@v1
