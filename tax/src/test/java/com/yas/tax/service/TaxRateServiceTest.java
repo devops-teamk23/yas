@@ -64,6 +64,9 @@ public class TaxRateServiceTest {
             .set(field("countryId"), 1L)
             .create();
         lenient().when(taxRateRepository.findAll()).thenReturn(List.of(taxRate));
+        // Default mock setup for taxClass operations
+        lenient().when(taxClassRepository.existsById(1L)).thenReturn(true);
+        lenient().when(taxClassRepository.getReferenceById(1L)).thenReturn(taxClass);
     }
 
     @Nested
@@ -124,8 +127,6 @@ public class TaxRateServiceTest {
             TaxRatePostVm postVm = new TaxRatePostVm(
                 10.0, "12345", 100L, 1L, taxClass.getId()
             );
-            when(taxClassRepository.existsById(taxClass.getId())).thenReturn(true);
-            when(taxClassRepository.getReferenceById(taxClass.getId())).thenReturn(taxClass);
             when(taxRateRepository.save(any(TaxRate.class))).thenReturn(taxRate);
             
             // Act
@@ -163,8 +164,6 @@ public class TaxRateServiceTest {
                 15.0, "54321", 200L, 1L, taxClass.getId()
             );
             when(taxRateRepository.findById(1L)).thenReturn(Optional.of(taxRate));
-            when(taxClassRepository.existsById(taxClass.getId())).thenReturn(true);
-            when(taxClassRepository.getReferenceById(taxClass.getId())).thenReturn(taxClass);
             
             // Act
             taxRateService.updateTaxRate(postVm, 1L);
