@@ -97,31 +97,35 @@ class ViewModelsTest {
             relatedProduct.setProductId(123L);
             relatedProduct.setName("Related Product");
             relatedProduct.setPrice(new BigDecimal("99.99"));
-            relatedProduct.setPublished(true);
-            relatedProduct.setFeatured(true);
+            relatedProduct.setSlug("related-product");
+            relatedProduct.setBrand("Brand Name");
 
             // Assert
             assertNotNull(relatedProduct, "RelatedProductVm should not be null");
             assertEquals(123L, relatedProduct.getProductId(), "Product ID should match");
             assertEquals("Related Product", relatedProduct.getName(), "Product name should match");
             assertEquals(new BigDecimal("99.99"), relatedProduct.getPrice(), "Product price should match");
-            assertEquals(true, relatedProduct.isPublished(), "Published flag should match");
-            assertEquals(true, relatedProduct.isFeatured(), "Featured flag should match");
+            assertEquals("related-product", relatedProduct.getSlug(), "Product slug should match");
+            assertEquals("Brand Name", relatedProduct.getBrand(), "Brand name should match");
         }
 
         @Test
-        @DisplayName("Should handle RelatedProductVm with false flags")
-        void testRelatedProductVmWithFalseFlags() {
+        @DisplayName("Should handle RelatedProductVm with description and metadata")
+        void testRelatedProductVmWithDescriptionAndMetadata() {
             // Act
             RelatedProductVm relatedProduct = new RelatedProductVm();
             relatedProduct.setProductId(456L);
-            relatedProduct.setName("Unpublished Product");
-            relatedProduct.setPublished(false);
-            relatedProduct.setFeatured(false);
+            relatedProduct.setName("Product With Metadata");
+            relatedProduct.setDescription("This is a product description");
+            relatedProduct.setTitle("Product Meta Title");
+            relatedProduct.setMetaDescription("Meta description for SEO");
 
             // Assert
-            assertEquals(false, relatedProduct.isPublished(), "Published flag should be false");
-            assertEquals(false, relatedProduct.isFeatured(), "Featured flag should be false");
+            assertEquals(456L, relatedProduct.getProductId(), "Product ID should match");
+            assertEquals("Product With Metadata", relatedProduct.getName(), "Product name should match");
+            assertEquals("This is a product description", relatedProduct.getDescription(), "Description should match");
+            assertEquals("Product Meta Title", relatedProduct.getTitle(), "Title should match");
+            assertEquals("Meta description for SEO", relatedProduct.getMetaDescription(), "Meta description should match");
         }
 
         @Test
@@ -161,6 +165,8 @@ class ViewModelsTest {
             // Assert
             assertEquals("Product A", product1.getName(), "Product 1 name should match");
             assertEquals("Product B", product2.getName(), "Product 2 name should match");
+            assertNotNull(product1, "Product 1 should not be null");
+            assertNotNull(product2, "Product 2 should not be null");
         }
     }
 
