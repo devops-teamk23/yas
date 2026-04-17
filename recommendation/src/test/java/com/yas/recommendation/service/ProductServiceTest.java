@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClient.RequestHeadersSpec;
 import org.springframework.web.client.RestClient.RequestHeadersUriSpec;
 import org.springframework.web.client.RestClient.ResponseSpec;
 
@@ -44,7 +45,10 @@ class ProductServiceTest {
     private RecommendationConfig config;
 
     @Mock
-    private RequestHeadersUriSpec<?> requestSpec;
+    private RequestHeadersUriSpec<?> requestUriSpec;
+
+    @Mock
+    private RequestHeadersSpec<?> requestHeadersSpec;
 
     @Mock
     private ResponseSpec responseSpec;
@@ -69,9 +73,9 @@ class ProductServiceTest {
             ProductDetailVm expectedProduct = createProductDetailVm(productId, "Test Product");
 
             when(config.getApiUrl()).thenReturn(apiUrl);
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(expectedProduct));
 
@@ -83,7 +87,7 @@ class ProductServiceTest {
             assertEquals(productId, result.id(), "Product ID should match");
             assertEquals("Test Product", result.name(), "Product name should match");
             verify(restClient).get();
-            verify(requestSpec).retrieve();
+            verify(requestHeadersSpec).retrieve();
         }
 
         @Test
@@ -95,9 +99,9 @@ class ProductServiceTest {
             ProductDetailVm expectedProduct = createProductDetailVm(productId, "Another Product");
 
             when(config.getApiUrl()).thenReturn(apiUrl);
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(expectedProduct));
 
@@ -106,7 +110,7 @@ class ProductServiceTest {
 
             // Assert
             ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
-            verify(requestSpec).uri(uriCaptor.capture());
+            verify(requestUriSpec).uri(uriCaptor.capture());
             URI capturedUri = uriCaptor.getValue();
             assertNotNull(capturedUri, "URI should not be null");
             assertEquals("http://product-service:9000/api/storefront/products/detail/456", 
@@ -147,9 +151,9 @@ class ProductServiceTest {
             );
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(fullProduct));
 
@@ -176,9 +180,9 @@ class ProductServiceTest {
             );
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(minimalProduct));
 
@@ -203,9 +207,9 @@ class ProductServiceTest {
             ProductDetailVm product = createProductDetailVm(largeProductId, "Large ID Product");
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(product));
 
@@ -225,9 +229,9 @@ class ProductServiceTest {
             ProductDetailVm product = createProductDetailVm(zeroProductId, "Zero ID Product");
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(product));
 
@@ -247,9 +251,9 @@ class ProductServiceTest {
             ProductDetailVm product = createProductDetailVm(oneProductId, "One ID Product");
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(product));
 
@@ -273,9 +277,9 @@ class ProductServiceTest {
             );
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(product));
 
@@ -294,9 +298,9 @@ class ProductServiceTest {
             long productId = 333L;
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(null));
 
@@ -328,8 +332,8 @@ class ProductServiceTest {
             long productId = 555L;
 
             when(config.getApiUrl()).thenReturn(null);
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
 
             // Act & Assert
             assertThrows(Exception.class, 
@@ -352,9 +356,9 @@ class ProductServiceTest {
             ProductDetailVm product2 = createProductDetailVm(productId2, "Product 2");
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(product1))
                     .thenReturn(ResponseEntity.ok(product2));
@@ -377,9 +381,9 @@ class ProductServiceTest {
             ProductDetailVm product = createProductDetailVm(productId, "Repeated Product");
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(product));
 
@@ -405,9 +409,9 @@ class ProductServiceTest {
             ProductDetailVm product = createProductDetailVm(productId, "Chain Test");
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(product));
 
@@ -416,8 +420,8 @@ class ProductServiceTest {
 
             // Assert - Verify the call chain
             verify(restClient).get();
-            verify(requestSpec).uri(any(URI.class));
-            verify(requestSpec).retrieve();
+            verify(requestUriSpec).uri(any(URI.class));
+            verify(requestHeadersSpec).retrieve();
             verify(responseSpec).toEntity(any(ParameterizedTypeReference.class));
         }
 
@@ -429,9 +433,9 @@ class ProductServiceTest {
             ProductDetailVm product = createProductDetailVm(productId, "Config Test");
 
             when(config.getApiUrl()).thenReturn("http://api:8080");
-            when(restClient.get()).thenReturn(requestSpec);
-            when(requestSpec.uri(any(URI.class))).thenReturn(requestSpec);
-            when(requestSpec.retrieve()).thenReturn(responseSpec);
+            when(restClient.get()).thenReturn(requestUriSpec);
+            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(product));
 
