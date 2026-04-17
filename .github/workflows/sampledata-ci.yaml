@@ -20,9 +20,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ============================================================================
-  # PHASE 1: test (Security & Code Analysis)
-  # ============================================================================
   test:
     runs-on: ubuntu-latest
     env:
@@ -30,60 +27,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history for SonarQube analysis
-
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
       - uses: ./.github/workflows/actions
-
-      # Build and install all dependencies first
       - name: Build and Install Dependencies
         run: mvn clean install -DskipTests
-
-      # Run Gitleaks to detect hardcoded secrets
       - name: Run Gitleaks Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: ./.github/workflows/gitleak
         with:
           version: v8.18.4
-
-      # Run Checkstyle for code style enforcement
       - name: Run Maven Checkstyle
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && hashFiles('sampledata/pom.xml') != '' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         run: mvn checkstyle:checkstyle -pl sampledata -am -Dcheckstyle.output.file=sampledata/target/sampledata-checkstyle-result.xml
-        continue-on-error: true
-
-      # Upload Checkstyle report (only if file exists)
       - name: Upload Checkstyle Result
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && hashFiles('sampledata/target/sampledata-checkstyle-result.xml') != '' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: jwgmeligmeyling/checkstyle-github-action@master
         with:
           path: "sampledata/target/sampledata-checkstyle-result.xml"
 
-      # Run Snyk security scan using CLI (generates JSON output)
       - name: Run Snyk Security Scan
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && hashFiles('sampledata/pom.xml') != '' }}
-        run: |
-          snyk test --file=sampledata/pom.xml --json > snyk-results.json
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: snyk/actions/maven@master
+        with:
+          args: --file=sampledata/pom.xml --severity-threshold=high
+          json: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        continue-on-error: true
-
-      # Upload Snyk results (only if file exists)
       - name: Upload Snyk Results
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && hashFiles('snyk-results.json') != '' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: actions/upload-artifact@master
         with:
           name: Snyk Security Report
           path: snyk-results.json
-
-      # Run SonarQube analysis
       - name: Analyze with sonar cloud
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && hashFiles('sampledata/pom.xml') != '' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f sampledata
-        continue-on-error: true
-
-      # Run OWASP Dependency Check
       - name: OWASP Dependency Check
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: dependency-check/Dependency-Check_Action@main
@@ -93,19 +73,13 @@ jobs:
           project: "yas"
           path: "."
           format: "HTML"
-        continue-on-error: true
-
-      # Upload OWASP results (only if reports folder exists)
       - name: Upload OWASP Dependency Check results
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && hashFiles('reports/**') != '' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: actions/upload-artifact@master
         with:
           name: OWASP Dependency Check Report
           path: ${{github.workspace}}/reports
 
-  # ============================================================================
-  # PHASE 2: run-unit-test (Unit Tests & Coverage Report)
-  # ============================================================================
   run-unit-test:
     needs: test
     runs-on: ubuntu-latest
@@ -115,15 +89,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: ./.github/workflows/actions
-
-      # Run Maven unit tests (JaCoCo coverage auto-generated)
       - name: Run Maven Tests
-        if: ${{ hashFiles('sampledata/pom.xml') != '' }}
         run: mvn test -pl sampledata -am -U
 
-      # Upload test results as comment on PR
       - name: Test Results
         uses: dorny/test-reporter@v1
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
@@ -131,11 +100,9 @@ jobs:
           name: Sampledata-Service-Unit-Test-Results
           path: "sampledata/**/*-reports/TEST*.xml"
           reporter: java-junit
-
-      # Add JaCoCo coverage report comment to PR (blocks if < 70%)
       - name: Add coverage report to PR
         uses: madrapps/jacoco-report@v1.6.1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && hashFiles('sampledata/target/site/jacoco/jacoco.xml') != '' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         with:
           paths: ${{github.workspace}}/sampledata/target/site/jacoco/jacoco.xml
           token: ${{secrets.GITHUB_TOKEN}}
@@ -143,18 +110,13 @@ jobs:
           min-coverage-changed-files: 60
           title: "Sampledata Coverage Report"
           update-comment: true
-
-      # Upload coverage HTML report as artifact
       - name: Upload Coverage Report
-        if: ${{ success() && hashFiles('sampledata/target/site/jacoco/') != '' }}
+        if: success()
         uses: actions/upload-artifact@master
         with:
           name: Jacoco Coverage Report
           path: sampledata/target/site/jacoco/
 
-  # ============================================================================
-  # PHASE 3: build (Package & Docker Deploy)
-  # ============================================================================
   build:
     needs: run-unit-test
     runs-on: ubuntu-latest
@@ -164,15 +126,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: ./.github/workflows/actions
-
-      # Build JAR/WAR artifact (skip tests - already run in Phase 2)
       - name: Run Maven Build Command
-        if: ${{ hashFiles('sampledata/pom.xml') != '' }}
-        run: mvn clean package -DskipTests -pl sampledata -am -U
-
-      # Login to GitHub Container Registry (main branch only)
+        run: mvn package -DskipTests -pl sampledata -am -U
       - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
@@ -180,8 +136,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Build and push Docker image to ghcr.io (main branch only)
       - name: Build and push Docker images
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
