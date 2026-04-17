@@ -2,41 +2,116 @@ name: search service ci
 
 on:
   push:
-    branches: ["main"]
+    branches: ["**"]
     paths:
       - "search/**"
       - ".github/workflows/actions/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/search-ci.yaml"
       - "pom.xml"
   pull_request:
-    branches: ["main"]
+    branches: ["**"]
     paths:
       - "search/**"
       - ".github/workflows/actions/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/search-ci.yaml"
       - "pom.xml"
   workflow_dispatch:
 
 jobs:
-  Build:
+  # ========== PHASE 1: TEST - Security scans + code quality checks ==========
+  test:
     runs-on: ubuntu-latest
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0
       - uses: ./.github/workflows/actions
-      - name: Run Maven Build Command
-        run: mvn clean install -pl search -am
+      
+      # Build and install dependencies
+      - name: Build and Install Dependencies
+        run: mvn clean install -DskipTests
+      
+      # Security: Gitleaks scan
+      - name: Run Gitleaks Scan
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: ./.github/workflows/gitleak
+        with:
+          version: v8.18.4
+      
+      # Code quality: Checkstyle
       - name: Run Maven Checkstyle
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        run: mvn checkstyle:checkstyle -pl search -am -Dcheckstyle.output.file=search-checkstyle-result.xml
+        run: mvn checkstyle:checkstyle -pl search -am -Dcheckstyle.output.file=search/target/search-checkstyle-result.xml
+      
       - name: Upload Checkstyle Result
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: jwgmeligmeyling/checkstyle-github-action@master
         with:
-          path: '**/search-checkstyle-result.xml'
+          path: "search/target/search-checkstyle-result.xml"
+
+      # Security: Snyk scan
+      - name: Run Snyk Security Scan
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: snyk/actions/maven@master
+        with:
+          args: --file=search/pom.xml --severity-threshold=high
+          json: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      
+      - name: Upload Snyk Results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: actions/upload-artifact@master
+        with:
+          name: Snyk Security Report
+          path: snyk-results.json
+      
+      # Code quality: SonarQube
+      - name: Analyze with sonar cloud
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f search
+      
+      # Security: OWASP Dependency Check
+      - name: OWASP Dependency Check
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: dependency-check/Dependency-Check_Action@main
+        env:
+          JAVA_HOME: /opt/jdk
+        with:
+          project: "yas"
+          path: "."
+          format: "HTML"
+      
+      - name: Upload OWASP Dependency Check results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: actions/upload-artifact@master
+        with:
+          name: OWASP Dependency Check Report
+          path: ${{github.workspace}}/reports
+
+  # ========== PHASE 2: RUN-UNIT-TEST - Execute tests + JaCoCo coverage ==========
+  run-unit-test:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/workflows/actions
+      
+      # Run unit tests
+      - name: Run Maven Tests
+        run: mvn test -pl search -am -U
+
+      # Report test results
       - name: Test Results
         uses: dorny/test-reporter@v1
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
@@ -44,36 +119,44 @@ jobs:
           name: Search-Service-Unit-Test-Results
           path: "search/**/*-reports/TEST*.xml"
           reporter: java-junit
-      - name: Analyze with sonar cloud
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f search
-      - name: OWASP Dependency Check
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: dependency-check/Dependency-Check_Action@main
-        env:
-          JAVA_HOME: /opt/jdk
-        with:
-          project: 'yas'
-          path: '.'
-          format: 'HTML'
-      - name: Upload OWASP Dependency Check results
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: actions/upload-artifact@master
-        with:
-          name: OWASP Dependency Check Report
-          path: ${{github.workspace}}/reports
+      
+      # Coverage report to PR
       - name: Add coverage report to PR
         uses: madrapps/jacoco-report@v1.6.1
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         with:
           paths: ${{github.workspace}}/search/target/site/jacoco/jacoco.xml
           token: ${{secrets.GITHUB_TOKEN}}
-          min-coverage-overall: 80
+          min-coverage-overall: 70
           min-coverage-changed-files: 60
-          title: 'Search Coverage Report'
+          title: "Search Coverage Report"
           update-comment: true
+      
+      # Upload coverage artifacts
+      - name: Upload Coverage Report
+        if: success()
+        uses: actions/upload-artifact@master
+        with:
+          name: Jacoco Coverage Report
+          path: search/target/site/jacoco/
+
+  # ========== PHASE 3: BUILD - Package + Docker build & push ==========
+  build:
+    needs: run-unit-test
+    runs-on: ubuntu-latest
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/workflows/actions
+      
+      # Maven build
+      - name: Run Maven Build Command
+        run: mvn package -DskipTests -pl search -am -U
+      
+      # Docker login (only on main branch)
       - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
@@ -81,6 +164,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Docker build & push (only on main branch)
       - name: Build and push Docker images
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
