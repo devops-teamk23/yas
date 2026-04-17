@@ -94,21 +94,20 @@ class SampleDataControllerTest {
     }
 
     @Test
-    @DisplayName("Should handle null request parameter without exception")
-    void testHandleNullRequest() {
+    @DisplayName("Should handle valid requests consistently")
+    void testHandleValidRequestsConsistently() {
         // Arrange
         when(sampleDataService.createSampleData()).thenReturn(expectedResponse);
+        SampleDataVm request1 = new SampleDataVm("Request 1");
+        SampleDataVm request2 = new SampleDataVm("Request 2");
 
-        // Act & Assert - Method should not throw NPE even if request is null
-        // (In real scenario with validation, this might be prevented by validator)
-        try {
-            SampleDataVm result = sampleDataController.createSampleData(null);
-            // If reaches here, verify it still called service and returned response
-            verify(sampleDataService, times(1)).createSampleData();
-        } catch (NullPointerException e) {
-            // This is also acceptable depending on validation rules
-            assertTrue(true, "Null request handling depends on validation rules");
-        }
+        // Act
+        SampleDataVm result1 = sampleDataController.createSampleData(request1);
+        SampleDataVm result2 = sampleDataController.createSampleData(request2);
+
+        // Assert
+        assertEquals(result1, result2, "Results should be identical regardless of request");
+        verify(sampleDataService, times(2)).createSampleData();
     }
 
     @Test

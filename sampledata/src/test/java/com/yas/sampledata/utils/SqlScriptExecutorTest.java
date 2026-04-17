@@ -94,14 +94,18 @@ class SqlScriptExecutorTest {
     @DisplayName("Should handle different schema names correctly")
     void testHandleDifferentSchemaNames() throws SQLException {
         // Arrange
-        when(mockDataSource.getConnection()).thenReturn(mockConnection);
         String[] schemaNames = {"public", "custom", "schema_test", "test2"};
 
         // Act & Assert
         for (String schema : schemaNames) {
-            sqlScriptExecutor.executeScriptsForSchema(mockDataSource, schema, 
+            // Create fresh mock for each iteration
+            DataSource dataSourceMock = mock(DataSource.class);
+            Connection connectionMock = mock(Connection.class);
+            when(dataSourceMock.getConnection()).thenReturn(connectionMock);
+            
+            sqlScriptExecutor.executeScriptsForSchema(dataSourceMock, schema, 
                 "classpath*:db/nonexistent/*.sql");
-            verify(mockConnection).setSchema(schema);
+            verify(connectionMock).setSchema(schema);
         }
     }
 
