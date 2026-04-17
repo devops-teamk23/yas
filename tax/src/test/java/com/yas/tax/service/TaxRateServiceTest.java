@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.instancio.Select.field;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -65,8 +65,9 @@ public class TaxRateServiceTest {
             .create();
         // Setup default mocks that will be used by multiple tests
         when(taxRateRepository.findAll()).thenReturn(List.of(taxRate));
-        when(taxClassRepository.existsById(1L)).thenReturn(true);
-        when(taxClassRepository.getReferenceById(1L)).thenReturn(taxClass);
+        // Make happy-path resilient (covers create/update tests even if ID changes)
+        when(taxClassRepository.existsById(anyLong())).thenReturn(true);
+        when(taxClassRepository.getReferenceById(anyLong())).thenReturn(taxClass);
     }
 
     @Nested
@@ -145,7 +146,8 @@ public class TaxRateServiceTest {
             TaxRatePostVm postVm = new TaxRatePostVm(
                 10.0, "12345", 100L, 1L, 999L
             );
-            lenient().when(taxClassRepository.existsById(999L)).thenReturn(false);
+            // Override default stub for this specific test
+            when(taxClassRepository.existsById(999L)).thenReturn(false);
             
             // Act & Assert
             assertThatThrownBy(() -> taxRateService.createTaxRate(postVm))
@@ -194,7 +196,8 @@ public class TaxRateServiceTest {
                 15.0, "54321", 200L, 1L, 999L
             );
             when(taxRateRepository.findById(1L)).thenReturn(Optional.of(taxRate));
-            lenient().when(taxClassRepository.existsById(999L)).thenReturn(false);
+            // Override default stub for this specific test
+            when(taxClassRepository.existsById(999L)).thenReturn(false);
             
             // Act & Assert
             assertThatThrownBy(() -> taxRateService.updateTaxRate(postVm, 1L))
