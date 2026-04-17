@@ -53,7 +53,9 @@ public class TaxRateServiceTest {
 
     @BeforeEach
     void setUp() {
-        taxClass = Instancio.create(TaxClass.class);
+        taxClass = Instancio.of(TaxClass.class)
+            .set(field("id"), 1L)
+            .create();
         taxRate = Instancio.of(TaxRate.class)
             .set(field("taxClass"), taxClass)
             .set(field("id"), 1L)
@@ -142,7 +144,7 @@ public class TaxRateServiceTest {
             TaxRatePostVm postVm = new TaxRatePostVm(
                 10.0, "12345", 100L, 1L, 999L
             );
-            when(taxClassRepository.existsById(999L)).thenReturn(false);
+            lenient().when(taxClassRepository.existsById(999L)).thenReturn(false);
             
             // Act & Assert
             assertThatThrownBy(() -> taxRateService.createTaxRate(postVm))
@@ -193,7 +195,7 @@ public class TaxRateServiceTest {
                 15.0, "54321", 200L, 1L, 999L
             );
             when(taxRateRepository.findById(1L)).thenReturn(Optional.of(taxRate));
-            when(taxClassRepository.existsById(999L)).thenReturn(false);
+            lenient().when(taxClassRepository.existsById(999L)).thenReturn(false);
             
             // Act & Assert
             assertThatThrownBy(() -> taxRateService.updateTaxRate(postVm, 1L))

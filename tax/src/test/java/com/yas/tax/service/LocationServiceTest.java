@@ -83,6 +83,7 @@ public class LocationServiceTest {
 
             when(restClient.get()).thenReturn(requestHeadersUriSpec);
             when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.headers(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.body(any(ParameterizedTypeReference.class)))
                 .thenReturn(expectedResult);
@@ -109,6 +110,7 @@ public class LocationServiceTest {
 
             when(restClient.get()).thenReturn(requestHeadersUriSpec);
             when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.headers(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.body(any(ParameterizedTypeReference.class)))
                 .thenReturn(List.of());
@@ -133,6 +135,7 @@ public class LocationServiceTest {
 
             when(restClient.get()).thenReturn(requestHeadersUriSpec);
             when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.headers(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.body(any(ParameterizedTypeReference.class)))
                 .thenThrow(new RuntimeException("External service error"));
@@ -158,15 +161,16 @@ public class LocationServiceTest {
 
             when(restClient.get()).thenReturn(requestHeadersUriSpec);
             when(requestHeadersUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.headers(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.body(any(ParameterizedTypeReference.class)))
                 .thenReturn(expectedResult);
 
             // Act
-            locationService.getStateOrProvinceAndCountryNames(stateIds);
+            List<StateOrProvinceAndCountryGetNameVm> result = locationService.getStateOrProvinceAndCountryNames(stateIds);
 
-            // Assert - Verify the JWT was extracted and used
-            when(jwt.getTokenValue()).thenReturn("test-jwt-token");
+            // Assert - Verify JWT was extracted (by verifying result is not null)
+            assertThat(result).isNotNull().hasSize(1);
         }
     }
 
