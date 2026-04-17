@@ -65,9 +65,9 @@ public class TaxRateServiceTest {
             .create();
         // Setup default mocks that will be used by multiple tests
         when(taxRateRepository.findAll()).thenReturn(List.of(taxRate));
-        // Make happy-path resilient (covers create/update tests even if ID changes)
-        when(taxClassRepository.existsById(anyLong())).thenReturn(true);
-        when(taxClassRepository.getReferenceById(anyLong())).thenReturn(taxClass);
+        // Setup stubs for specific IDs used by happy-path tests (1L)
+        when(taxClassRepository.existsById(1L)).thenReturn(true);
+        when(taxClassRepository.getReferenceById(1L)).thenReturn(taxClass);
     }
 
     @Nested
