@@ -63,10 +63,10 @@ public class TaxRateServiceTest {
             .set(field("stateOrProvinceId"), 100L)
             .set(field("countryId"), 1L)
             .create();
-        lenient().when(taxRateRepository.findAll()).thenReturn(List.of(taxRate));
-        // Default mock setup for taxClass operations
-        lenient().when(taxClassRepository.existsById(1L)).thenReturn(true);
-        lenient().when(taxClassRepository.getReferenceById(1L)).thenReturn(taxClass);
+        // Setup default mocks that will be used by multiple tests
+        when(taxRateRepository.findAll()).thenReturn(List.of(taxRate));
+        when(taxClassRepository.existsById(1L)).thenReturn(true);
+        when(taxClassRepository.getReferenceById(1L)).thenReturn(taxClass);
     }
 
     @Nested
