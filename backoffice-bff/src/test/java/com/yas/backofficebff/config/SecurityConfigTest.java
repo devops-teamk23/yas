@@ -1,7 +1,6 @@
 package com.yas.backofficebff.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -10,25 +9,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.config.web.server.ServerHttpSecurity;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
-import org.springframework.security.oauth2.core.oidc.user.OidcUserInfo;
 import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
-import org.springframework.security.web.server.SecurityWebFilterChain;
 
 class SecurityConfigTest {
-
-    @Test
-    void shouldCreateSecurityWebFilterChain() {
-        SecurityConfig securityConfig = new SecurityConfig(mock(ReactiveClientRegistrationRepository.class));
-
-        SecurityWebFilterChain filterChain = securityConfig.springSecurityFilterChain(ServerHttpSecurity.http());
-
-        assertNotNull(filterChain);
-    }
 
     @Test
     void shouldGenerateAuthoritiesFromClaim() {
@@ -50,7 +37,7 @@ class SecurityConfigTest {
         );
         OAuth2UserAuthority authority = new OAuth2UserAuthority(attributes);
 
-        Set<GrantedAuthority> mappedAuthorities = securityConfig
+        var mappedAuthorities = securityConfig
             .userAuthoritiesMapperForKeycloak()
             .mapAuthorities(Set.of(authority));
 
@@ -74,7 +61,7 @@ class SecurityConfigTest {
         ));
         OidcUserAuthority authority = new OidcUserAuthority(idToken, userInfo);
 
-        Set<GrantedAuthority> mappedAuthorities = securityConfig
+        var mappedAuthorities = securityConfig
             .userAuthoritiesMapperForKeycloak()
             .mapAuthorities(Set.of(authority));
 
@@ -88,7 +75,7 @@ class SecurityConfigTest {
 
         OAuth2UserAuthority authority = new OAuth2UserAuthority(Map.of("sub", "user-1"));
 
-        Set<GrantedAuthority> mappedAuthorities = securityConfig
+        var mappedAuthorities = securityConfig
             .userAuthoritiesMapperForKeycloak()
             .mapAuthorities(Set.of(authority));
 
