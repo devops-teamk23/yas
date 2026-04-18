@@ -20,5 +20,6 @@ paths = [
   '''test-realm.json''',
   '''realm-export''',
   '''keycloak-yas-realm-import.yaml''',
-  '''target'''
+  '''target''',
+  '''k8s/charts/yas-configuration/values.yaml'''
 ]
