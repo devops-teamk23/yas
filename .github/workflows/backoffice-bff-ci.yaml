@@ -57,6 +57,22 @@ jobs:
             --file=backoffice-bff/pom.xml \
             --severity-threshold=high \
             --json-file-output=snyk-results.json
+          SNYK_EXIT_CODE=$?
+          if [ $SNYK_EXIT_CODE -eq 2 ]; then
+            echo "Snyk Maven scan failed with tooling/runtime error. Falling back to unmanaged scan for backoffice-bff."
+            docker pull snyk/snyk
+            docker run --rm \
+              -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+              -v ${{ github.workspace }}:/work \
+              -w /work \
+              snyk/snyk snyk test \
+              --scan-all-unmanaged \
+              --severity-threshold=high \
+              --json-file-output=snyk-results.json \
+              /work/backoffice-bff
+            SNYK_EXIT_CODE=$?
+          fi
+          exit $SNYK_EXIT_CODE
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       - name: Upload Snyk Results
