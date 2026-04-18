@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
       - uses: ./.github/workflows/actions
       - name: Build and Install Dependencies
         run: mvn clean install -DskipTests -pl backoffice-bff -am -U
@@ -68,9 +68,9 @@ jobs:
         env:
           JAVA_HOME: /opt/jdk
         with:
-          project: 'yas'
-          path: '.'
-          format: 'HTML'
+          project: "yas"
+          path: "."
+          format: "HTML"
       - name: Upload OWASP Dependency Check results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: actions/upload-artifact@master
@@ -78,7 +78,7 @@ jobs:
           name: OWASP Dependency Check Report
           path: ${{github.workspace}}/reports
 
-  unit-test:
+  run-unit-test:
     needs: test
     runs-on: ubuntu-latest
     env:
@@ -115,7 +115,7 @@ jobs:
           path: backoffice-bff/target/site/jacoco/
 
   build:
-    needs: unit-test
+    needs: run-unit-test
     runs-on: ubuntu-latest
     permissions:
       contents: read
