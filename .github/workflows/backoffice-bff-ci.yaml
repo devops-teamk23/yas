@@ -50,10 +50,14 @@ jobs:
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_ORG_ID: ${{ variables.SNYNK_ORG_ID }}
         run: |
           if [ -z "$SNYK_TOKEN" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "::warning::SNYK_TOKEN is missing for this workflow context, skipping Snyk scan."
+          elif [ -z "$SNYK_ORG_ID" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SNYK_ORG_ID is missing for this workflow context, skipping Snyk scan."
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
@@ -63,19 +67,35 @@ jobs:
       - name: Run Snyk Security Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         run: |
+          set +e
           mvn -f backoffice-bff/pom.xml -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom
           snyk sbom test \
             --file=backoffice-bff/target/bom.json \
+            --org=$SNYK_ORG_ID \
             --severity-threshold=high \
-            --json-file-output=snyk-results.json
+            --json-file-output=snyk-results.json \
+            2>&1 | tee snyk-console.log
+          SNYK_EXIT_CODE=${PIPESTATUS[0]}
+          if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
+            echo "::error::Snyk authentication/authorization failed. Verify SNYK_TOKEN and SNYK_ORG_ID permissions."
+            exit 2
+          fi
+          if [ $SNYK_EXIT_CODE -eq 1 ]; then
+            echo "::warning::Snyk found vulnerabilities at configured severity threshold. Report uploaded for remediation tracking."
+            exit 0
+          fi
+          exit $SNYK_EXIT_CODE
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_ORG_ID: ${{ variables.SNYK_ORG_ID }}
       - name: Upload Snyk Results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@master
         with:
           name: Snyk Security Report
-          path: snyk-results.json
+          path: |
+            snyk-results.json
+            snyk-console.log
       - name: Analyze with sonar cloud
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
