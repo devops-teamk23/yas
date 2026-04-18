@@ -36,6 +36,7 @@ jobs:
         uses: ./.github/workflows/gitleak
         with:
           version: v8.18.4
+          path: backoffice-bff
       - name: Run Maven Checkstyle
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         run: mvn checkstyle:checkstyle -pl backoffice-bff -am -Dcheckstyle.output.file=backoffice-bff/target/backoffice-bff-checkstyle-result.xml
