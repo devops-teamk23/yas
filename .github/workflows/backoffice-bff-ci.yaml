@@ -45,12 +45,18 @@ jobs:
         uses: jwgmeligmeyling/checkstyle-github-action@master
         with:
           path: "backoffice-bff/target/backoffice-bff-checkstyle-result.xml"
-      - name: Setup Snyk CLI
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: snyk/actions/setup@master
       - name: Run Snyk Security Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        run: snyk test --file=backoffice-bff/pom.xml --severity-threshold=high --json-file-output=snyk-results.json
+        run: |
+          docker pull snyk/snyk:maven
+          docker run --rm \
+            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+            -v ${{ github.workspace }}:/work \
+            -w /work \
+            snyk/snyk:maven snyk test \
+            --file=backoffice-bff/pom.xml \
+            --severity-threshold=high \
+            --json-file-output=snyk-results.json
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       - name: Upload Snyk Results
