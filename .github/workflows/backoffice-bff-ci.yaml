@@ -1,4 +1,3 @@
-# test
 name: backoffice-bff service ci
 
 on:
@@ -51,7 +50,7 @@ jobs:
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-          SNYK_ORG_ID: ${{ variables.SNYNK_ORG_ID }}
+          SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
         run: |
           if [ -z "$SNYK_TOKEN" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -88,7 +87,7 @@ jobs:
           exit $SNYK_EXIT_CODE
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-          SNYK_ORG_ID: ${{ variables.SNYK_ORG_ID }}
+          SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
       - name: Upload Snyk Results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@master
