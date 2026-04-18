@@ -36,6 +36,7 @@ jobs:
         uses: ./.github/workflows/gitleak
         with:
           version: v8.18.4
+          path: ./recommendation
       - name: Run Maven Checkstyle
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         run: mvn checkstyle:checkstyle -pl recommendation -am -Dcheckstyle.output.file=recommendation/target/recommendation-checkstyle-result.xml
