@@ -174,7 +174,33 @@ jobs:
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f backoffice-bff
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_KEY="${{ github.event.pull_request.number }}"
+            PR_BRANCH="${{ github.event.pull_request.head.ref }}"
+            PR_BASE="${{ github.event.pull_request.base.ref }}"
+
+            mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f backoffice-bff \
+              -Dsonar.pullrequest.key="$PR_KEY" \
+              -Dsonar.pullrequest.branch="$PR_BRANCH" \
+              -Dsonar.pullrequest.base="$PR_BASE"
+            SONAR_EXIT_CODE=$?
+
+            if [ $SONAR_EXIT_CODE -ne 0 ]; then
+              echo "::warning::PR analysis failed (likely ALM PR binding issue). Retrying as branch analysis."
+              mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f backoffice-bff \
+                -Dsonar.branch.name="pr-$PR_KEY"
+              SONAR_EXIT_CODE=$?
+            fi
+
+            exit $SONAR_EXIT_CODE
+          fi
+
+          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f backoffice-bff \
+            -Dsonar.branch.name="${{ github.ref_name }}"
       - name: OWASP Dependency Check
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: dependency-check/Dependency-Check_Action@main
