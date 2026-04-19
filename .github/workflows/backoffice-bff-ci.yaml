@@ -1,4 +1,3 @@
-# test
 name: backoffice-bff service ci
 
 on:
@@ -66,15 +65,40 @@ jobs:
         run: |
           set +e
 
+          SNYK_API_EFFECTIVE="https://api.snyk.io"
           if [ -n "$SNYK_API_URL" ]; then
             export SNYK_API="$SNYK_API_URL"
+            SNYK_API_EFFECTIVE="$SNYK_API_URL"
             echo "Using custom Snyk API endpoint from SNYK_API_URL."
           fi
 
-          snyk auth "$SNYK_TOKEN" 2>&1 | tee snyk-auth.log
-          snyk whoami 2>&1 | tee -a snyk-auth.log
+          echo "Snyk CLI version:" | tee snyk-auth.log
+          snyk --version 2>&1 | tee -a snyk-auth.log
+          echo "Snyk API endpoint: $SNYK_API_EFFECTIVE" | tee -a snyk-auth.log
 
-          # Prefer Maven-native scan to avoid SBOM permission edge cases in CI.
+          snyk auth "$SNYK_TOKEN" 2>&1 | tee -a snyk-auth.log
+          AUTH_EXIT_CODE=${PIPESTATUS[0]}
+          if [ $AUTH_EXIT_CODE -ne 0 ]; then
+            echo "::error::snyk auth failed. Verify SNYK_TOKEN validity."
+            exit 2
+          fi
+
+          snyk whoami --json 2>&1 | tee snyk-whoami.json
+          WHOAMI_EXIT_CODE=${PIPESTATUS[0]}
+          cat snyk-whoami.json >> snyk-auth.log
+          if [ $WHOAMI_EXIT_CODE -ne 0 ] || grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-whoami.json; then
+            echo "::error::snyk whoami failed. Verify SNYK_TOKEN permission and SNYK_API_URL region endpoint."
+            exit 2
+          fi
+
+          HTTP_CODE=$(curl -sS -o snyk-me.json -w "%{http_code}" -H "Authorization: token $SNYK_TOKEN" "$SNYK_API_EFFECTIVE/v1/user/me")
+          echo "Snyk /v1/user/me HTTP status: $HTTP_CODE" | tee -a snyk-auth.log
+          cat snyk-me.json >> snyk-auth.log
+          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            echo "::error::Snyk API access denied ($HTTP_CODE). Check token scope and org access in this tenant."
+            exit 2
+          fi
+
           snyk test \
             --file=backoffice-bff/pom.xml \
             --package-manager=maven \
@@ -83,21 +107,16 @@ jobs:
             2>&1 | tee snyk-console.log
           SNYK_EXIT_CODE=${PIPESTATUS[0]}
 
-          if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eqi "JAVA_HOME|Failed to get dependencies|child process|mvnw|maven command" snyk-console.log; then
-            echo "::warning::Maven-based Snyk scan execution failed in CI. Falling back to SBOM scan."
-            mvn -f backoffice-bff/pom.xml -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom
-            snyk sbom test \
-              --file=backoffice-bff/target/bom.json \
-              --severity-threshold=high \
-              --json-file-output=snyk-results.json \
-              2>&1 | tee -a snyk-console.log
-            SNYK_EXIT_CODE=${PIPESTATUS[0]}
-          fi
-
           if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
             echo "::error::Snyk authentication/authorization failed. Verify token type/permissions and optional SNYK_API_URL region endpoint."
             exit 2
           fi
+
+          if [ $SNYK_EXIT_CODE -eq 2 ]; then
+            echo "::error::Snyk scan execution failed (non-vulnerability error). Review snyk-console.log artifact for root cause."
+            exit 2
+          fi
+
           if [ $SNYK_EXIT_CODE -eq 1 ]; then
             echo "::warning::Snyk found vulnerabilities at configured severity threshold. Report uploaded for remediation tracking."
             exit 0
@@ -114,6 +133,8 @@ jobs:
           path: |
             snyk-results.json
             snyk-auth.log
+            snyk-whoami.json
+            snyk-me.json
             snyk-console.log
       - name: Analyze with sonar cloud
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
