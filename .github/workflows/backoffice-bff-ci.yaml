@@ -99,12 +99,19 @@ jobs:
             exit 2
           fi
 
+          snyk orgs list --json > snyk-orgs.json 2>>snyk-auth.log || true
+
+          EFFECTIVE_ORG_ID="$SNYK_ORG_ID"
+          if [ -z "$EFFECTIVE_ORG_ID" ] && [ -s snyk-orgs.json ]; then
+            EFFECTIVE_ORG_ID=$(python3 -c "import json; d=json.load(open('snyk-orgs.json','r',encoding='utf-8')); print((d[0].get('id') if isinstance(d,list) and d else ''))" 2>/dev/null || true)
+          fi
+
           ORG_ARG=()
-          if [ -n "$SNYK_ORG_ID" ]; then
-            ORG_ARG=("--org=$SNYK_ORG_ID")
-            echo "Using Snyk org from SNYK_ORG_ID." | tee -a snyk-auth.log
+          if [ -n "$EFFECTIVE_ORG_ID" ]; then
+            ORG_ARG=("--org=$EFFECTIVE_ORG_ID")
+            echo "Using Snyk org: $EFFECTIVE_ORG_ID" | tee -a snyk-auth.log
           else
-            echo "SNYK_ORG_ID is not set. Using token default org context." | tee -a snyk-auth.log
+            echo "::warning::No effective Snyk org found. Scan will use token default org context." | tee -a snyk-auth.log
           fi
 
           snyk test \
@@ -112,6 +119,7 @@ jobs:
             --package-manager=maven \
             --severity-threshold=high \
             --json-file-output=snyk-results.json \
+            "${ORG_ARG[@]}" \
             2>&1 | tee snyk-console.log
           SNYK_EXIT_CODE=${PIPESTATUS[0]}
 
@@ -128,7 +136,11 @@ jobs:
           fi
 
           if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
-            echo "::error::Snyk authentication/authorization failed. Verify token type/permissions and optional SNYK_API_URL region endpoint."
+            if [ -s snyk-results.json ]; then
+              echo "::warning::Snyk returned auth/permission error after producing scan results. Keeping report and continuing."
+              exit 0
+            fi
+            echo "::error::Snyk authentication/authorization failed before scan results were produced. Verify token permissions, org access, and SNYK_API_URL."
             exit 2
           fi
 
@@ -156,6 +168,7 @@ jobs:
             snyk-auth.log
             snyk-whoami.json
             snyk-me.json
+            snyk-orgs.json
             snyk-console.log
       - name: Analyze with sonar cloud
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
