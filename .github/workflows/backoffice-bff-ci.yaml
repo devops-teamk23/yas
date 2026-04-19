@@ -99,6 +99,14 @@ jobs:
             exit 2
           fi
 
+          ORG_ARG=()
+          if [ -n "$SNYK_ORG_ID" ]; then
+            ORG_ARG=("--org=$SNYK_ORG_ID")
+            echo "Using Snyk org from SNYK_ORG_ID." | tee -a snyk-auth.log
+          else
+            echo "SNYK_ORG_ID is not set. Using token default org context." | tee -a snyk-auth.log
+          fi
+
           snyk test \
             --file=backoffice-bff/pom.xml \
             --package-manager=maven \
@@ -106,6 +114,18 @@ jobs:
             --json-file-output=snyk-results.json \
             2>&1 | tee snyk-console.log
           SNYK_EXIT_CODE=${PIPESTATUS[0]}
+
+          if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)" snyk-console.log; then
+            echo "::warning::Maven dependency resolution failed inside Snyk CLI. Falling back to SBOM scan."
+            mvn -f backoffice-bff/pom.xml -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom
+            snyk sbom test \
+              --file=backoffice-bff/target/bom.json \
+              --severity-threshold=high \
+              --json-file-output=snyk-results.json \
+              "${ORG_ARG[@]}" \
+              2>&1 | tee -a snyk-console.log
+            SNYK_EXIT_CODE=${PIPESTATUS[0]}
+          fi
 
           if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
             echo "::error::Snyk authentication/authorization failed. Verify token type/permissions and optional SNYK_API_URL region endpoint."
@@ -125,6 +145,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
           SNYK_API_URL: ${{ vars.SNYK_API_URL }}
+          SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
       - name: Upload Snyk Results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@master
