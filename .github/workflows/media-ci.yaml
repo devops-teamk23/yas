@@ -34,6 +34,13 @@ jobs:
       - name: Build and Install Dependencies
         run: mvn clean install -DskipTests -pl media -am -U
 
+      - name: Run Gitleaks Scan
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: ./.github/workflows/gitleak
+        with:
+          version: v8.18.4
+          path: media
+
       - name: Check Snyk Token Availability
         id: snyk_token_check
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
@@ -159,6 +166,8 @@ jobs:
             snyk-me.json
             snyk-orgs.json
             snyk-console.log
+
+      - name: Run Maven Checkstyle
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         run: mvn checkstyle:checkstyle -pl media -am -Dcheckstyle.output.file=media-checkstyle-result.xml
         
@@ -227,7 +236,7 @@ jobs:
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
         with:
           name: Media-Service-Unit-Test-Results
-          path: "media/**/*-reports/TEST*.xml"
+          path: "media/target/surefire-reports/TEST-*.xml"
           reporter: java-junit
           
       - name: Add coverage report to PR
