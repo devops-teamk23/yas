@@ -177,30 +177,40 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
+          SONAR_CMD="org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar"
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             PR_KEY="${{ github.event.pull_request.number }}"
             PR_BRANCH="${{ github.event.pull_request.head.ref }}"
             PR_BASE="${{ github.event.pull_request.base.ref }}"
 
-            mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f backoffice-bff \
+            mvn "$SONAR_CMD" -f backoffice-bff \
               -Dsonar.pullrequest.key="$PR_KEY" \
               -Dsonar.pullrequest.branch="$PR_BRANCH" \
-              -Dsonar.pullrequest.base="$PR_BASE"
+              -Dsonar.pullrequest.base="$PR_BASE" \
+              2>&1 | tee sonar.log
             SONAR_EXIT_CODE=$?
 
             if [ $SONAR_EXIT_CODE -ne 0 ]; then
-              echo "::warning::PR analysis failed (likely ALM PR binding issue). Retrying as branch analysis."
-              mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f backoffice-bff \
-                -Dsonar.branch.name="pr-$PR_KEY"
-              SONAR_EXIT_CODE=$?
+              if grep -Eq "Could not find the pullrequest with key|Error 404 on https://api\.sonarcloud\.io/analysis/analyses|Detected project binding: BOUND" sonar.log; then
+                echo "::warning::SonarCloud ALM binding/platform issue for this PR. Skipping Sonar failure to avoid blocking CI."
+                exit 0
+              fi
             fi
 
             exit $SONAR_EXIT_CODE
           fi
 
-          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f backoffice-bff \
-            -Dsonar.branch.name="${{ github.ref_name }}"
+          mvn "$SONAR_CMD" -f backoffice-bff -Dsonar.branch.name="${{ github.ref_name }}" \
+            2>&1 | tee sonar.log
+          SONAR_EXIT_CODE=$?
+
+          if [ $SONAR_EXIT_CODE -ne 0 ] && grep -Eq "Error 404 on https://api\.sonarcloud\.io/analysis/analyses" sonar.log; then
+            echo "::warning::SonarCloud analysis API returned 404. Skipping Sonar failure for platform-side issue."
+            exit 0
+          fi
+
+          exit $SONAR_EXIT_CODE
       - name: OWASP Dependency Check
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: dependency-check/Dependency-Check_Action@main
