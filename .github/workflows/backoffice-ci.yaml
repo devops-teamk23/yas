@@ -159,17 +159,17 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: Run Trivy filesystem scanner
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.24.0
         with:
-          scan-type: 'fs'
-          scan-ref: './backoffice'
-          format: 'sarif'
-          output: 'trivy-fs-results.sarif'
+          scan-type: "fs"
+          scan-ref: "./backoffice"
+          format: "sarif"
+          output: "trivy-fs-results.sarif"
       - name: Upload Trivy fs scan results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: 'trivy-fs-results.sarif'
+          sarif_file: "trivy-fs-results.sarif"
 
   run-unit-test:
     needs: test
@@ -243,11 +243,11 @@ jobs:
           tags: ghcr.io/nashtech-garage/yas-backoffice:latest
       - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: 'ghcr.io/nashtech-garage/yas-backoffice:latest'
-          format: 'sarif'
-          output: 'trivy-image-results.sarif'
+          image-ref: "ghcr.io/nashtech-garage/yas-backoffice:latest"
+          format: "sarif"
+          output: "trivy-image-results.sarif"
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
@@ -259,4 +259,4 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: 'trivy-image-results.sarif'
+          sarif_file: "trivy-image-results.sarif"

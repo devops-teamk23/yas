@@ -39,7 +39,10 @@ describe('ResponseStatusHandlingService', () => {
     });
 
     it('shows API detail on not found', () => {
-      handleDeletingResponse({ title: ResponseTitle.NOT_FOUND, detail: 'Not found detail' }, 'Category A');
+      handleDeletingResponse(
+        { title: ResponseTitle.NOT_FOUND, detail: 'Not found detail' },
+        'Category A'
+      );
 
       expect(toastError).toHaveBeenCalledWith('Not found detail');
     });
