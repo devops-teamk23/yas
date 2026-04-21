@@ -2,57 +2,232 @@ name: backoffice service ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["**"]
     paths:
       - "backoffice/**"
       - ".github/workflows/actions/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/backoffice-ci.yaml"
+      - "pom.xml"
   pull_request:
-    branches: [ "main" ]
+    branches: ["**"]
     paths:
       - "backoffice/**"
       - ".github/workflows/actions/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/backoffice-ci.yaml"
+      - "pom.xml"
   workflow_dispatch:
 
 jobs:
-  Build:
+  test:
     runs-on: ubuntu-latest
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
         working-directory: backoffice
-      - run: npm run build
+      - name: Build frontend
+        run: npm run build
         working-directory: backoffice
-      - run: npm run lint
+      - name: Run lint
+        run: npm run lint
         working-directory: backoffice
-      - run: npx prettier --check .
+      - name: Check format
+        run: npx prettier --check .
         working-directory: backoffice
-      - run: npm audit --omit=dev
+      - name: NPM audit
+        run: npm audit --omit=dev
         continue-on-error: true
         working-directory: backoffice
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.24.0
+      - name: Run Gitleaks Scan
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: ./.github/workflows/gitleak
         with:
-          scan-type: 'fs'
-          scan-ref: './backoffice'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          version: v8.18.4
+          path: backoffice
+      - name: Check Snyk Token Availability
+        id: snyk_token_check
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SNYK_TOKEN is missing for this workflow context, skipping Snyk scan."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Setup Snyk CLI
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        uses: snyk/actions/setup@master
+      - name: Run Snyk Security Scan
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_API_URL: ${{ vars.SNYK_API_URL }}
+          SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
+        run: |
+          set +e
+
+          SNYK_API_EFFECTIVE="https://api.snyk.io"
+          if [ -n "$SNYK_API_URL" ]; then
+            export SNYK_API="$SNYK_API_URL"
+            SNYK_API_EFFECTIVE="$SNYK_API_URL"
+            echo "Using custom Snyk API endpoint from SNYK_API_URL."
+          fi
+
+          snyk auth "$SNYK_TOKEN" 2>&1 | tee snyk-auth.log
+          AUTH_EXIT_CODE=${PIPESTATUS[0]}
+          if [ $AUTH_EXIT_CODE -ne 0 ]; then
+            echo "::error::snyk auth failed. Verify SNYK_TOKEN validity."
+            exit 2
+          fi
+
+          snyk whoami --json 2>&1 | tee snyk-whoami.json
+          WHOAMI_EXIT_CODE=${PIPESTATUS[0]}
+          if [ $WHOAMI_EXIT_CODE -ne 0 ]; then
+            echo "::error::snyk whoami failed. Verify SNYK_TOKEN permission and SNYK_API_URL region endpoint."
+            exit 2
+          fi
+
+          HTTP_CODE=$(curl -sS -o snyk-me.json -w "%{http_code}" -H "Authorization: token $SNYK_TOKEN" "$SNYK_API_EFFECTIVE/v1/user/me")
+          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            echo "::error::Snyk API access denied ($HTTP_CODE). Check token scope and org access in this tenant."
+            exit 2
+          fi
+
+          ORG_ARG=()
+          if [ -n "$SNYK_ORG_ID" ]; then
+            ORG_ARG=("--org=$SNYK_ORG_ID")
+          fi
+
+          snyk test \
+            --file=backoffice/package.json \
+            --package-manager=npm \
+            --severity-threshold=high \
+            --json-file-output=snyk-results.json \
+            "${ORG_ARG[@]}" \
+            2>&1 | tee snyk-console.log
+          SNYK_EXIT_CODE=${PIPESTATUS[0]}
+
+          if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
+            if [ -s snyk-results.json ]; then
+              echo "::warning::Snyk returned auth/permission error after producing scan results. Keeping report and continuing."
+              exit 0
+            fi
+            echo "::error::Snyk authentication/authorization failed before scan results were produced. Verify token permissions, org access, and SNYK_API_URL."
+            exit 2
+          fi
+
+          if [ $SNYK_EXIT_CODE -eq 1 ]; then
+            echo "::warning::Snyk found vulnerabilities at configured severity threshold. Report uploaded for remediation tracking."
+            exit 0
+          fi
+
+          if [ $SNYK_EXIT_CODE -eq 2 ]; then
+            echo "::error::Snyk scan execution failed (non-vulnerability error). Review snyk-console.log artifact for root cause."
+            exit 2
+          fi
+
+          exit $SNYK_EXIT_CODE
+      - name: Upload Snyk Results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@master
+        with:
+          name: Snyk Security Report
+          path: |
+            snyk-results.json
+            snyk-auth.log
+            snyk-whoami.json
+            snyk-me.json
+            snyk-console.log
       - name: SonarCloud Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: SonarSource/sonarcloud-github-action@master
         with:
           projectBaseDir: backoffice
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Run Trivy filesystem scanner
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'fs'
+          scan-ref: './backoffice'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+      - name: Upload Trivy fs scan results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+
+  run-unit-test:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm ci
+        working-directory: backoffice
+      - name: Run unit tests and coverage
+        run: npm run test:coverage
+        working-directory: backoffice
+      - name: Test Results
+        uses: dorny/test-reporter@v1
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
+        with:
+          name: Backoffice-Service-Unit-Test-Results
+          path: "backoffice/junit.xml"
+          reporter: jest-junit
+      - name: Upload Coverage Report
+        if: success()
+        uses: actions/upload-artifact@master
+        with:
+          name: Backoffice Coverage Report
+          path: backoffice/coverage/
+
+  build:
+    needs: run-unit-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm ci
+        working-directory: backoffice
+      - name: Build frontend
+        run: npm run build
+        working-directory: backoffice
       - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
@@ -66,13 +241,13 @@ jobs:
         with:
           context: ./backoffice
           tags: ghcr.io/nashtech-garage/yas-backoffice:latest
-      - name: Run Trivy vulnerability scanner
+      - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: 'ghcr.io/nashtech-garage/yas-backoffice:latest'
           format: 'sarif'
-          output: 'trivy-results.sarif'
+          output: 'trivy-image-results.sarif'
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
@@ -80,7 +255,8 @@ jobs:
           push: true
           context: ./backoffice
           tags: ghcr.io/nashtech-garage/yas-backoffice:latest
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Upload Trivy image scan results
+        if: ${{ github.ref == 'refs/heads/main' }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: 'trivy-image-results.sarif'
