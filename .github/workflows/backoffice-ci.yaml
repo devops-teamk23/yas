@@ -74,6 +74,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
           SNYK_API_URL: ${{ vars.SNYK_API_URL }}
           SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
+        working-directory: backoffice
         run: |
           set +e
 
@@ -110,7 +111,7 @@ jobs:
           fi
 
           snyk test \
-            --file=backoffice/package.json \
+            --file=package.json \
             --package-manager=npm \
             --severity-threshold=high \
             --json-file-output=snyk-results.json \
@@ -144,11 +145,11 @@ jobs:
         with:
           name: Snyk Security Report
           path: |
-            snyk-results.json
-            snyk-auth.log
-            snyk-whoami.json
-            snyk-me.json
-            snyk-console.log
+            backoffice/snyk-results.json
+            backoffice/snyk-auth.log
+            backoffice/snyk-whoami.json
+            backoffice/snyk-me.json
+            backoffice/snyk-console.log
       - name: SonarCloud Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: SonarSource/sonarcloud-github-action@master
