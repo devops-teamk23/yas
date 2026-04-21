@@ -110,8 +110,18 @@ jobs:
             ORG_ARG=("--org=$SNYK_ORG_ID")
           fi
 
+          echo "Snyk scan working directory: $(pwd)"
+          if [ ! -d "node_modules" ]; then
+            echo "::warning::node_modules is missing in backoffice. Running npm ci before Snyk scan."
+            npm ci
+          fi
+
+          if [ ! -d "node_modules" ]; then
+            echo "::error::node_modules is still missing after npm ci."
+            exit 2
+          fi
+
           snyk test \
-            --file=package.json \
             --package-manager=npm \
             --severity-threshold=high \
             --json-file-output=snyk-results.json \
