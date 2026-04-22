@@ -25,6 +25,7 @@ jobs:
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
       RUN_SECURITY_SCANS: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unit-test/recommendation' }}
+      RUN_SONAR_SCAN: ${{ github.ref != 'refs/heads/unit-test/recommendation' && github.head_ref != 'unit-test/recommendation' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -202,13 +203,18 @@ jobs:
           if-no-files-found: warn
       - name: Analyze with sonar cloud
         id: sonar_scan
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' && env.RUN_SONAR_SCAN == 'true' }}
         continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::warning::SONAR_TOKEN is missing for this workflow context, skipping SonarCloud analysis."
+            exit 0
+          fi
+
           SONAR_CMD="org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar"
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
