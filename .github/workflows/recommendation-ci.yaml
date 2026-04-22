@@ -20,8 +20,13 @@ on:
 jobs:
   Build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      CAN_PUBLISH_CHECKS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,17 +38,20 @@ jobs:
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         run: mvn checkstyle:checkstyle -pl recommendation -am -Dcheckstyle.output.file=recommendation-checkstyle-result.xml
       - name: Upload Checkstyle Result
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && env.CAN_PUBLISH_CHECKS == 'true' }}
         uses: jwgmeligmeyling/checkstyle-github-action@master
         with:
           path: '**/recommendation-checkstyle-result.xml'
       - name: Test Results
         uses: dorny/test-reporter@v1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && env.CAN_PUBLISH_CHECKS == 'true' && (success() || failure()) }}
         with:
           name: Recommendation-Service-Unit-Test-Results
-          path: "recommendation/**/*-reports/TEST*.xml"
+          path: |
+            recommendation/target/surefire-reports/TEST-*.xml
+            recommendation/target/failsafe-reports/TEST-*.xml
           reporter: java-junit
+          fail-on-empty: false
       - name: Analyze with sonar cloud
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
@@ -66,7 +74,7 @@ jobs:
           path: ${{github.workspace}}/reports
       - name: Add coverage report to PR
         uses: madrapps/jacoco-report@v1.6.1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && env.CAN_PUBLISH_CHECKS == 'true' }}
         with:
           paths: ${{github.workspace}}/recommendation/target/site/jacoco/jacoco.xml
           token: ${{secrets.GITHUB_TOKEN}}
