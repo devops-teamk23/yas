@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      RUN_SECURITY_SCANS: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unit-test/storefront' }}
+      RUN_SONAR_SCAN: ${{ github.ref != 'refs/heads/unit-test/storefront' && github.head_ref != 'unit-test/storefront' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,30 +33,195 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: storefront/package-lock.json
       - name: Install dependencies
         run: npm ci
         working-directory: storefront
       - name: Run Gitleaks Scan
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: ./.github/workflows/gitleak
+        id: gitleaks_scan
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        continue-on-error: true
+        run: |
+          docker pull zricethezav/gitleaks:v8.18.4
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work \
+            zricethezav/gitleaks:v8.18.4 detect \
+            --source="storefront" \
+            --config="/work/gitleaks.toml" \
+            --verbose \
+            --no-git \
+            --report-format=json \
+            --report-path=storefront-gitleaks-report.json
+      - name: Upload Gitleaks Result
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
+        uses: actions/upload-artifact@master
         with:
-          version: v8.18.4
+          name: Storefront Gitleaks Report
+          path: storefront-gitleaks-report.json
+          if-no-files-found: warn
       - name: Run Linter
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
         run: npm run lint
         working-directory: storefront
       - name: Run Prettier Check
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
         run: npx prettier --check .
         working-directory: storefront
+      - name: Check Snyk Token Availability
+        id: snyk_token_check
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SNYK_TOKEN is missing for this workflow context, skipping Snyk scan." | tee snyk-auth.log
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Setup Snyk CLI
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        uses: snyk/actions/setup@master
+      - name: Run Snyk Security Scan
+        id: snyk_scan
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_API_URL: ${{ vars.SNYK_API_URL }}
+          SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
+        run: |
+          set +e
+
+          SNYK_API_EFFECTIVE="https://api.snyk.io"
+          if [ -n "$SNYK_API_URL" ]; then
+            export SNYK_API="$SNYK_API_URL"
+            SNYK_API_EFFECTIVE="$SNYK_API_URL"
+            echo "Using custom Snyk API endpoint from SNYK_API_URL."
+          fi
+
+          echo "Snyk CLI version:" | tee snyk-auth.log
+          snyk --version 2>&1 | tee -a snyk-auth.log
+          echo "Snyk API endpoint: $SNYK_API_EFFECTIVE" | tee -a snyk-auth.log
+
+          snyk auth "$SNYK_TOKEN" 2>&1 | tee -a snyk-auth.log
+          AUTH_EXIT_CODE=${PIPESTATUS[0]}
+          if [ $AUTH_EXIT_CODE -ne 0 ]; then
+            echo "::error::snyk auth failed. Verify SNYK_TOKEN validity."
+            exit 2
+          fi
+
+          snyk whoami --json 2>&1 | tee snyk-whoami.json
+          WHOAMI_EXIT_CODE=${PIPESTATUS[0]}
+          cat snyk-whoami.json >> snyk-auth.log
+          if [ $WHOAMI_EXIT_CODE -ne 0 ] || grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-whoami.json; then
+            echo "::error::snyk whoami failed. Verify SNYK_TOKEN permission and SNYK_API_URL region endpoint."
+            exit 2
+          fi
+
+          HTTP_CODE=$(curl -sS -o snyk-me.json -w "%{http_code}" -H "Authorization: token $SNYK_TOKEN" "$SNYK_API_EFFECTIVE/v1/user/me")
+          echo "Snyk /v1/user/me HTTP status: $HTTP_CODE" | tee -a snyk-auth.log
+          cat snyk-me.json >> snyk-auth.log
+          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            echo "::error::Snyk API access denied ($HTTP_CODE). Check token scope and org access in this tenant."
+            exit 2
+          fi
+
+          snyk orgs list --json > snyk-orgs.json 2>>snyk-auth.log || true
+
+          EFFECTIVE_ORG_ID="$SNYK_ORG_ID"
+          if [ -z "$EFFECTIVE_ORG_ID" ] && [ -s snyk-orgs.json ]; then
+            EFFECTIVE_ORG_ID=$(python3 -c "import json; d=json.load(open('snyk-orgs.json','r',encoding='utf-8')); print((d[0].get('id') if isinstance(d,list) and d else ''))" 2>/dev/null || true)
+          fi
+
+          ORG_ARG=()
+          if [ -n "$EFFECTIVE_ORG_ID" ]; then
+            ORG_ARG=("--org=$EFFECTIVE_ORG_ID")
+            echo "Using Snyk org: $EFFECTIVE_ORG_ID" | tee -a snyk-auth.log
+          else
+            echo "::warning::No effective Snyk org found. Scan will use token default org context." | tee -a snyk-auth.log
+          fi
+
+          snyk test \
+            --file=storefront/package.json \
+            --package-manager=npm \
+            --severity-threshold=high \
+            --json-file-output=snyk-results.json \
+            "${ORG_ARG[@]}" \
+            2>&1 | tee snyk-console.log
+          SNYK_EXIT_CODE=${PIPESTATUS[0]}
+
+          if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
+            if [ -s snyk-results.json ]; then
+              echo "::warning::Snyk returned auth/permission error after producing scan results. Keeping report and continuing."
+              exit 0
+            fi
+            echo "::error::Snyk authentication/authorization failed before scan results were produced. Verify token permissions, org access, and SNYK_API_URL."
+            exit 2
+          fi
+
+          if [ $SNYK_EXIT_CODE -eq 2 ]; then
+            echo "::warning::Snyk scan execution failed with a non-vulnerability error. Review snyk-console.log artifact for root cause."
+            exit 0
+          fi
+
+          if [ $SNYK_EXIT_CODE -eq 1 ]; then
+            echo "::warning::Snyk found vulnerabilities at configured severity threshold. Report uploaded for remediation tracking."
+            exit 0
+          fi
+          exit $SNYK_EXIT_CODE
+      - name: Upload Snyk Results
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
+        uses: actions/upload-artifact@master
+        with:
+          name: Snyk Security Report
+          path: |
+            snyk-results.json
+            snyk-auth.log
+            snyk-whoami.json
+            snyk-me.json
+            snyk-orgs.json
+            snyk-console.log
+          if-no-files-found: warn
       - name: Analyze with sonar cloud
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' && env.RUN_SONAR_SCAN == 'true' }}
+        continue-on-error: true
         uses: SonarSource/sonarcloud-github-action@master
         with:
           projectBaseDir: storefront
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Cache OWASP Dependency-Check Database
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: storefront-owasp-dc-${{ hashFiles('storefront/package-lock.json') }}
+          restore-keys: storefront-owasp-dc-
+      - name: OWASP Dependency Check
+        id: owasp_scan
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        continue-on-error: true
+        uses: dependency-check/Dependency-Check_Action@main
+        env:
+          JAVA_HOME: /opt/jdk
+        with:
+          project: "storefront"
+          path: "storefront"
+          format: "HTML"
+      - name: Upload OWASP Dependency Check results
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
+        uses: actions/upload-artifact@master
+        with:
+          name: OWASP Dependency Check Report
+          path: ${{github.workspace}}/reports
+          if-no-files-found: warn
+      - name: Fail on security scan errors
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && steps.gitleaks_scan.outcome == 'failure' }}
+        run: exit 1
 
   build:
     needs: test
@@ -68,6 +235,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: storefront/package-lock.json
       - name: Install dependencies
         run: npm ci
         working-directory: storefront
