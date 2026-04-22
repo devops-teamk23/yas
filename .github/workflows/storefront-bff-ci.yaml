@@ -297,8 +297,11 @@ jobs:
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
         with:
           name: Storefront-BFF-Unit-Test-Results
-          path: "storefront-bff/**/*-reports/TEST*.xml"
+          path: |
+            storefront-bff/target/surefire-reports/TEST-*.xml
+            storefront-bff/target/failsafe-reports/TEST-*.xml
           reporter: java-junit
+          fail-on-empty: false
       - name: Add coverage report to PR
         uses: madrapps/jacoco-report@v1.6.1
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
