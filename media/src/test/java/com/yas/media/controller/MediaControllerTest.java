@@ -128,7 +128,8 @@ class MediaControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(MediaType.IMAGE_JPEG, response.getHeaders().getContentType());
-        assertEquals("attachment; filename=\"fileName.jpg\"", response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION));
+        assertEquals("attachment; filename=\"fileName.jpg\"",
+                response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION));
         assertEquals(is, ((InputStreamResource) response.getBody()).getInputStream());
     }
 }
