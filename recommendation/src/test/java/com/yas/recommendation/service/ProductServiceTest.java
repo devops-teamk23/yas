@@ -2,10 +2,11 @@ package com.yas.recommendation.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,9 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClient.RequestHeadersSpec;
-import org.springframework.web.client.RestClient.RequestHeadersUriSpec;
-import org.springframework.web.client.RestClient.ResponseSpec;
 
 /**
  * Unit tests for ProductService class.
@@ -304,10 +302,11 @@ class ProductServiceTest {
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
                     .thenReturn(ResponseEntity.ok(null));
 
-            // Act & Assert
-            assertThrows(NullPointerException.class, 
-                    () -> productService.getProductDetail(productId),
-                    "Should handle null response gracefully");
+            // Act
+            ProductDetailVm result = productService.getProductDetail(productId);
+
+            // Assert
+            assertNull(result, "Null response body should be returned as null");
         }
 
         @Test
@@ -332,13 +331,12 @@ class ProductServiceTest {
             long productId = 555L;
 
             when(config.getApiUrl()).thenReturn(null);
-            when(restClient.get()).thenReturn(requestUriSpec);
-            when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
 
             // Act & Assert
             assertThrows(Exception.class, 
                     () -> productService.getProductDetail(productId),
                     "Should handle null API URL");
+            verify(restClient, never()).get();
         }
     }
 
@@ -360,8 +358,7 @@ class ProductServiceTest {
             when(requestUriSpec.uri(any(URI.class))).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(any(ParameterizedTypeReference.class)))
-                    .thenReturn(ResponseEntity.ok(product1))
-                    .thenReturn(ResponseEntity.ok(product2));
+                    .thenReturn(ResponseEntity.ok(product1), ResponseEntity.ok(product2));
 
             // Act
             ProductDetailVm result1 = productService.getProductDetail(productId1);
@@ -370,7 +367,7 @@ class ProductServiceTest {
             // Assert
             assertEquals(productId1, result1.id(), "First call should return first product");
             assertEquals(productId2, result2.id(), "Second call should return second product");
-            verify(restClient).get();
+            verify(restClient, times(2)).get();
         }
 
         @Test

@@ -7,16 +7,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 /**
  * Unit tests for RecommendationConfig configuration class.
  * Tests verify correct loading of configuration properties from application.yml/properties.
  */
-@SpringBootTest
-@EnableConfigurationProperties(RecommendationConfig.class)
+@SpringJUnitConfig(RecommendationConfig.class)
 @TestPropertySource(properties = "yas.services.product=http://product-service:8080/api")
 @DisplayName("RecommendationConfig Tests")
 class RecommendationConfigTest {
