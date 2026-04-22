@@ -292,6 +292,35 @@ jobs:
           fi
           mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report -pl storefront-bff -am $UPDATE_FLAG
 
+      - name: Enforce JaCoCo Coverage Threshold
+        run: |
+          python3 - <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          threshold = 70.0
+          report_path = "storefront-bff/target/site/jacoco/jacoco.xml"
+          root = ET.parse(report_path).getroot()
+          counter = next(
+              (item for item in root.findall("counter") if item.get("type") == "LINE"),
+              None,
+          )
+
+          if counter is None:
+              print(f"::error::No LINE coverage counter found in {report_path}")
+              sys.exit(1)
+
+          missed = int(counter.get("missed", "0"))
+          covered = int(counter.get("covered", "0"))
+          total = missed + covered
+          coverage = 0.0 if total == 0 else covered * 100 / total
+
+          print(f"Line coverage: {coverage:.2f}% ({covered}/{total} lines covered)")
+          if coverage < threshold:
+              print(f"::error::Line coverage {coverage:.2f}% is below required {threshold:.2f}%")
+              sys.exit(1)
+          PY
+
       - name: Test Results
         uses: dorny/test-reporter@v1
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
@@ -313,7 +342,7 @@ jobs:
           title: "Storefront BFF Coverage Report"
           update-comment: true
       - name: Upload Coverage Report
-        if: success()
+        if: always()
         uses: actions/upload-artifact@master
         with:
           name: Jacoco Coverage Report
