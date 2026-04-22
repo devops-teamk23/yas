@@ -22,8 +22,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      CAN_PUBLISH_CHECKS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       RUN_SECURITY_SCANS: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unit-test/webhook' }}
       RUN_SONAR_SCAN: ${{ github.ref != 'refs/heads/unit-test/webhook' && github.head_ref != 'unit-test/webhook' }}
     steps:
@@ -70,7 +75,7 @@ jobs:
         if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
         run: mvn checkstyle:checkstyle -pl webhook -am -Dcheckstyle.output.file=webhook/target/webhook-checkstyle-result.xml
       - name: Upload Checkstyle Result
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' && env.CAN_PUBLISH_CHECKS == 'true' }}
         uses: jwgmeligmeyling/checkstyle-github-action@master
         with:
           path: "webhook/target/webhook-checkstyle-result.xml"
@@ -291,8 +296,13 @@ jobs:
   run-unit-test:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      CAN_PUBLISH_CHECKS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -312,14 +322,17 @@ jobs:
           mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report -pl webhook -am $UPDATE_FLAG
       - name: Test Results
         uses: dorny/test-reporter@v1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && env.CAN_PUBLISH_CHECKS == 'true' && (success() || failure()) }}
         with:
           name: Webhook-Service-Unit-Test-Results
-          path: "webhook/**/*-reports/TEST*.xml"
+          path: |
+            webhook/target/surefire-reports/TEST-*.xml
+            webhook/target/failsafe-reports/TEST-*.xml
           reporter: java-junit
+          fail-on-empty: false
       - name: Add coverage report to PR
         uses: madrapps/jacoco-report@v1.6.1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && env.CAN_PUBLISH_CHECKS == 'true' }}
         with:
           paths: ${{github.workspace}}/webhook/target/site/jacoco/jacoco.xml
           token: ${{secrets.GITHUB_TOKEN}}
