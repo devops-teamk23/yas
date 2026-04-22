@@ -295,11 +295,16 @@ jobs:
       - name: Enforce JaCoCo Coverage Threshold
         run: |
           python3 - <<'PY'
+          import os
           import sys
           import xml.etree.ElementTree as ET
 
           threshold = 70.0
           report_path = "storefront-bff/target/site/jacoco/jacoco.xml"
+          if not os.path.exists(report_path):
+              print(f"::error::JaCoCo XML report not found at {report_path}")
+              sys.exit(1)
+
           root = ET.parse(report_path).getroot()
           counter = next(
               (item for item in root.findall("counter") if item.get("type") == "LINE"),
