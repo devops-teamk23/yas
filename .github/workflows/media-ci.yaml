@@ -259,14 +259,14 @@ jobs:
       - name: Run Maven Unit Tests and Coverage
         run: mvn clean org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.14:report -pl media -am -U
         
-      - name: Quality Gate (Coverage >= 70%)
+      - name: Quality Gate (Coverage >= 90%)
         run: |
           awk -F"," 'NR>1 { missed += $4; covered += $5 } END {
             if (missed+covered > 0) coverage = (covered/(missed+covered))*100
             else coverage = 0
             print "Code Coverage: " coverage "%"
-            if (coverage < 70) {
-              print "Coverage is below 70%. Failing the pipeline."
+            if (coverage < 90) {
+              print "Coverage is below 90%. Failing the pipeline."
               exit 1
             }
           }' media/target/site/jacoco/jacoco.csv
