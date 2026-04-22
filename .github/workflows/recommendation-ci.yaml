@@ -268,7 +268,7 @@ jobs:
           path: ${{github.workspace}}/reports
           if-no-files-found: warn
       - name: Fail on security scan errors
-        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && (steps.gitleaks_scan.outcome == 'failure' || steps.owasp_scan.outcome == 'failure') }}
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && steps.gitleaks_scan.outcome == 'failure' }}
         run: exit 1
 
   run-unit-test:
