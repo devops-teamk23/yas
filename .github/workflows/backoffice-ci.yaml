@@ -22,8 +22,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,11 +47,9 @@ jobs:
         run: npx prettier --check .
         working-directory: backoffice
       - name: NPM audit
-        run: npm audit --omit=dev
-        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
         working-directory: backoffice
       - name: Run Gitleaks Scan
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: ./.github/workflows/gitleak
         with:
           version: v8.18.4
@@ -130,17 +131,13 @@ jobs:
           SNYK_EXIT_CODE=${PIPESTATUS[0]}
 
           if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
-            if [ -s snyk-results.json ]; then
-              echo "::warning::Snyk returned auth/permission error after producing scan results. Keeping report and continuing."
-              exit 0
-            fi
             echo "::error::Snyk authentication/authorization failed before scan results were produced. Verify token permissions, org access, and SNYK_API_URL."
             exit 2
           fi
 
           if [ $SNYK_EXIT_CODE -eq 1 ]; then
-            echo "::warning::Snyk found vulnerabilities at configured severity threshold. Report uploaded for remediation tracking."
-            exit 0
+            echo "::error::Snyk found vulnerabilities at configured severity threshold. Failing CI."
+            exit 1
           fi
 
           if [ $SNYK_EXIT_CODE -eq 2 ]; then
@@ -151,7 +148,7 @@ jobs:
           exit $SNYK_EXIT_CODE
       - name: Upload Snyk Results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Snyk Security Report
           path: |
@@ -161,13 +158,13 @@ jobs:
             backoffice/snyk-me.json
             backoffice/snyk-console.log
       - name: SonarCloud Scan (Pull Request)
-        id: sonar_pr
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name == 'pull_request' }}
-        continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@v5.0.0
         with:
           projectBaseDir: backoffice
           args: >
+            -Dsonar.projectKey=devops-teamk23_yas
+            -Dsonar.organization=devops-teamk23
             -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
             -Dsonar.pullrequest.branch=${{ github.event.pull_request.head.ref }}
             -Dsonar.pullrequest.base=${{ github.event.pull_request.base.ref }}
@@ -175,16 +172,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-      - name: SonarCloud PR fallback note
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name == 'pull_request' && steps.sonar_pr.outcome == 'failure' }}
-        run: |
-          echo "::warning::SonarCloud PR analysis failed (ALM binding/PR sync issue). CI continues and other quality gates remain enforced."
-
       - name: SonarCloud Scan (Branch)
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name != 'pull_request' }}
         uses: SonarSource/sonarqube-scan-action@v5.0.0
         with:
           projectBaseDir: backoffice
+          args: >
+            -Dsonar.projectKey=devops-teamk23_yas
+            -Dsonar.organization=devops-teamk23
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -210,7 +205,7 @@ jobs:
       checks: write
       pull-requests: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -226,14 +221,14 @@ jobs:
         working-directory: backoffice
       - name: Test Results
         uses: dorny/test-reporter@v1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
+        if: ${{ success() || failure() }}
         with:
           name: Backoffice-Service-Unit-Test-Results
           path: "backoffice/junit.xml"
           reporter: jest-junit
       - name: Upload Coverage Report
         if: success()
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Backoffice Coverage Report
           path: backoffice/coverage/
@@ -244,8 +239,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
