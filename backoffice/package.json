@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest --passWithNoTests",
-    "test:coverage": "jest --coverage --coverageReporters=lcov --coverageReporters=text --reporters=default --reporters=jest-junit --passWithNoTests"
+    "test:coverage": "jest --coverage --coverageReporters=lcov --coverageReporters=text --coverageReporters=json-summary --reporters=default --reporters=jest-junit --passWithNoTests"
   },
   "jest-junit": {
     "outputDirectory": ".",
