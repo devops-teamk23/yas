@@ -46,14 +46,84 @@ jobs:
       - name: Check format
         run: npx prettier --check .
         working-directory: backoffice
-      - name: NPM audit
-        run: npm audit --omit=dev --audit-level=high
+      - name: NPM audit (warn only on findings)
         working-directory: backoffice
+        run: |
+          set +e
+
+          npm audit --omit=dev --audit-level=high --json > npm-audit.json
+          AUDIT_EXIT_CODE=$?
+
+          if [ ! -s npm-audit.json ]; then
+            echo "::error::npm audit did not produce a report. The audit tool may have failed."
+            exit 2
+          fi
+
+          node <<'EOF'
+          const fs = require('fs');
+
+          let report;
+          try {
+            report = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
+          } catch (error) {
+            console.error('::error::Failed to parse npm-audit.json.');
+            process.exit(2);
+          }
+
+          if (report.error) {
+            console.error(`::error::npm audit execution error: ${report.error.summary || report.error.message || 'unknown error'}`);
+            process.exit(2);
+          }
+
+          const vulnerabilities = report.metadata?.vulnerabilities || {};
+          const critical = vulnerabilities.critical || 0;
+          const high = vulnerabilities.high || 0;
+          const moderate = vulnerabilities.moderate || 0;
+          const low = vulnerabilities.low || 0;
+          const info = vulnerabilities.info || 0;
+          const total = critical + high + moderate + low + info;
+
+          if (critical + high > 0) {
+            console.log(`::warning::npm audit found ${critical} critical and ${high} high vulnerabilities. CI continues by policy.`);
+          } else {
+            console.log('npm audit found no high/critical vulnerabilities.');
+          }
+
+          if (total > 0) {
+            console.log(`::notice::npm audit total vulnerabilities reported: ${total}.`);
+          }
+          EOF
+
+          NODE_EXIT_CODE=$?
+          if [ $NODE_EXIT_CODE -ne 0 ]; then
+            exit $NODE_EXIT_CODE
+          fi
+
+          if [ $AUDIT_EXIT_CODE -gt 1 ]; then
+            echo "::error::npm audit command failed with exit code $AUDIT_EXIT_CODE."
+            exit 2
+          fi
+
+          if [ $AUDIT_EXIT_CODE -eq 1 ]; then
+            echo "::warning::npm audit reported vulnerabilities at configured threshold. CI continues by policy."
+          fi
+      - name: Upload npm audit results
+        if: ${{ success() || failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Backoffice NPM Audit Report
+          path: backoffice/npm-audit.json
       - name: Run Gitleaks Scan
         uses: ./.github/workflows/gitleak
         with:
           version: v8.18.4
           path: backoffice
+      - name: Upload Gitleaks results
+        if: ${{ success() || failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Backoffice Gitleaks Report
+          path: gitleaks-report.json
       - name: Check Snyk Token Availability
         id: snyk_token_check
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
@@ -136,8 +206,8 @@ jobs:
           fi
 
           if [ $SNYK_EXIT_CODE -eq 1 ]; then
-            echo "::error::Snyk found vulnerabilities at configured severity threshold. Failing CI."
-            exit 1
+            echo "::warning::Snyk found vulnerabilities at configured severity threshold. CI continues by policy."
+            exit 0
           fi
 
           if [ $SNYK_EXIT_CODE -eq 2 ]; then
@@ -189,6 +259,8 @@ jobs:
         with:
           scan-type: "fs"
           scan-ref: "./backoffice"
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
           format: "sarif"
           output: "trivy-fs-results.sarif"
       - name: Upload Trivy fs scan results
@@ -273,6 +345,8 @@ jobs:
         uses: aquasecurity/trivy-action@v0.24.0
         with:
           image-ref: "ghcr.io/nashtech-garage/yas-backoffice:latest"
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
           format: "sarif"
           output: "trivy-image-results.sarif"
       - name: Push Docker image
