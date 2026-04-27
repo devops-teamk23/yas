@@ -46,7 +46,7 @@ jobs:
       - name: Run Gitleaks Scan
         id: gitleaks_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        continue-on-error: true
+        # continue-on-error: true
         run: |
           docker pull zricethezav/gitleaks:v8.18.4
           docker run --rm \
@@ -92,7 +92,7 @@ jobs:
       - name: Run Snyk Security Scan
         id: snyk_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
-        continue-on-error: true
+        # continue-on-error: true
         run: |
           set +e
           SNYK_API_EFFECTIVE="https://api.snyk.io"
@@ -200,7 +200,7 @@ jobs:
       - name: Analyze with sonar cloud
         id: sonar_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' && env.RUN_SONAR_SCAN == 'true' }}
-        continue-on-error: true
+        # continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -246,7 +246,7 @@ jobs:
       - name: OWASP Dependency Check
         id: owasp_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        continue-on-error: true
+        # continue-on-error: true
         uses: dependency-check/Dependency-Check_Action@main
         env:
           JAVA_HOME: /opt/jdk
