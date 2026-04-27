@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 import com.yas.commonlibrary.config.ServiceUrlConfig;
@@ -46,7 +47,7 @@ class ProductServiceTest {
         ProductService serviceSpy = Mockito.spy(productService);
         ProductThumbnailVm product = getProductThumbnailVms().getFirst();
 
-        when(serviceSpy.getProducts(List.of(1L))).thenReturn(List.of(product));
+        doReturn(List.of(product)).when(serviceSpy).getProducts(List.of(1L));
 
         ProductThumbnailVm result = serviceSpy.getProductById(1L);
 
@@ -58,7 +59,7 @@ class ProductServiceTest {
     void getProductById_WhenNoProduct_ReturnNull() {
         ProductService serviceSpy = Mockito.spy(productService);
 
-        when(serviceSpy.getProducts(List.of(99L))).thenReturn(List.of());
+        doReturn(List.of()).when(serviceSpy).getProducts(List.of(99L));
 
         ProductThumbnailVm result = serviceSpy.getProductById(99L);
 
@@ -70,8 +71,8 @@ class ProductServiceTest {
         ProductService serviceSpy = Mockito.spy(productService);
         ProductThumbnailVm product = getProductThumbnailVms().getFirst();
 
-        when(serviceSpy.getProducts(List.of(1L))).thenReturn(List.of(product));
-        when(serviceSpy.getProducts(List.of(99L))).thenReturn(List.of());
+        doReturn(List.of(product)).when(serviceSpy).getProducts(List.of(1L));
+        doReturn(List.of()).when(serviceSpy).getProducts(List.of(99L));
 
         assertTrue(serviceSpy.existsById(1L));
         assertFalse(serviceSpy.existsById(99L));
