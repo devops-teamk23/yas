@@ -2,19 +2,293 @@ name: release charts ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["**"]
     paths:
       - "k8s/charts/**"
       - ".github/workflows/charts-ci.yaml"
+      - ".github/workflows/gitleak/action.yaml"
+      - "gitleaks.toml"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - "k8s/charts/**"
+      - ".github/workflows/charts-ci.yaml"
+      - ".github/workflows/gitleak/action.yaml"
+      - "gitleaks.toml"
+  workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3.5
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add stakater https://stakater.github.io/stakater-charts
+          helm repo update
+
+      - name: Run Gitleaks Scan
+        id: gitleaks_scan
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        continue-on-error: true
+        run: |
+          docker pull zricethezav/gitleaks:v8.18.4
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work \
+            zricethezav/gitleaks:v8.18.4 detect \
+            --source="k8s/charts" \
+            --config="/work/gitleaks.toml" \
+            --verbose \
+            --no-git \
+            --report-format=json \
+            --report-path=charts-gitleaks-report.json
+
+      - name: Upload Gitleaks Result
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Charts Gitleaks Report
+          path: charts-gitleaks-report.json
+          if-no-files-found: warn
+
+      - name: Check Snyk Token Availability
+        id: snyk_token_check
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SNYK_TOKEN is missing for this workflow context, skipping Snyk scan."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Snyk CLI
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        uses: snyk/actions/setup@master
+
+      - name: Run Snyk IaC Security Scan
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_API_URL: ${{ vars.SNYK_API_URL }}
+          SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
+        run: |
+          set +e
+
+          SNYK_API_EFFECTIVE="https://api.snyk.io"
+          if [ -n "$SNYK_API_URL" ]; then
+            export SNYK_API="$SNYK_API_URL"
+            SNYK_API_EFFECTIVE="$SNYK_API_URL"
+            echo "Using custom Snyk API endpoint from SNYK_API_URL."
+          fi
+
+          snyk auth "$SNYK_TOKEN" 2>&1 | tee snyk-auth.log
+          AUTH_EXIT_CODE=${PIPESTATUS[0]}
+          if [ $AUTH_EXIT_CODE -ne 0 ]; then
+            echo "::error::snyk auth failed. Verify SNYK_TOKEN validity."
+            exit 2
+          fi
+
+          snyk whoami --json 2>&1 | tee snyk-whoami.json
+          WHOAMI_EXIT_CODE=${PIPESTATUS[0]}
+          if [ $WHOAMI_EXIT_CODE -ne 0 ]; then
+            echo "::error::snyk whoami failed. Verify SNYK_TOKEN permission and SNYK_API_URL region endpoint."
+            exit 2
+          fi
+
+          HTTP_CODE=$(curl -sS -o snyk-me.json -w "%{http_code}" -H "Authorization: token $SNYK_TOKEN" "$SNYK_API_EFFECTIVE/v1/user/me")
+          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            echo "::error::Snyk API access denied ($HTTP_CODE). Check token scope and org access in this tenant."
+            exit 2
+          fi
+
+          ORG_ARG=()
+          if [ -n "$SNYK_ORG_ID" ]; then
+            ORG_ARG=("--org=$SNYK_ORG_ID")
+          fi
+
+          snyk iac test k8s/charts \
+            --severity-threshold=high \
+            --json-file-output=snyk-results.json \
+            "${ORG_ARG[@]}" \
+            2>&1 | tee snyk-console.log
+          SNYK_EXIT_CODE=${PIPESTATUS[0]}
+
+          if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
+            if [ -s snyk-results.json ]; then
+              echo "::warning::Snyk returned auth/permission error after producing scan results. Keeping report and continuing."
+              exit 0
+            fi
+            echo "::error::Snyk authentication/authorization failed before scan results were produced. Verify token permissions, org access, and SNYK_API_URL."
+            exit 2
+          fi
+
+          if [ $SNYK_EXIT_CODE -eq 1 ]; then
+            echo "::warning::Snyk found vulnerabilities at configured severity threshold. CI continues by policy."
+            exit 0
+          fi
+
+          if [ $SNYK_EXIT_CODE -eq 2 ]; then
+            echo "::error::Snyk scan execution failed (non-vulnerability error). Review snyk-console.log artifact for root cause."
+            exit 2
+          fi
+
+          exit $SNYK_EXIT_CODE
+
+      - name: Upload Snyk Results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Charts Snyk Security Report
+          path: |
+            snyk-results.json
+            snyk-auth.log
+            snyk-whoami.json
+            snyk-me.json
+            snyk-console.log
+
+      - name: Run Trivy filesystem scanner
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          scan-type: "fs"
+          scan-ref: "./k8s/charts"
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
+          format: "sarif"
+          output: "trivy-fs-results.sarif"
+
+      - name: Upload Trivy fs scan results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-fs-results.sarif"
+
+  run-unit-test:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+      security-events: write
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3.5
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add stakater https://stakater.github.io/stakater-charts
+          helm repo update
+
+      - name: Validate Helm charts and enforce pass ratio > 70%
+        run: |
+          set -e
+          total=0
+          passed=0
+          summary_file="charts-validation-summary.txt"
+          : > "$summary_file"
+
+          while IFS= read -r chart_file; do
+            chart_dir=$(dirname "$chart_file")
+            chart_name=$(basename "$chart_dir")
+            total=$((total + 1))
+
+            echo "Validating chart: $chart_name" | tee -a "$summary_file"
+            if helm dependency build "$chart_dir" >/dev/null 2>&1 && helm lint "$chart_dir" >/dev/null 2>&1 && helm template "$chart_name" "$chart_dir" >/dev/null 2>&1; then
+              passed=$((passed + 1))
+              echo "PASS: $chart_name" | tee -a "$summary_file"
+            else
+              echo "FAIL: $chart_name" | tee -a "$summary_file"
+            fi
+          done < <(find k8s/charts -mindepth 2 -maxdepth 2 -name Chart.yaml | sort)
+
+          if [ $total -eq 0 ]; then
+            echo "::error::No Helm charts were found under k8s/charts."
+            exit 2
+          fi
+
+          pass_ratio=$((passed * 100 / total))
+          echo "Charts validated: $passed/$total ($pass_ratio%)" | tee -a "$summary_file"
+          echo "Chart validation ratio: $pass_ratio% (required > 70%)"
+
+          if [ $pass_ratio -le 70 ]; then
+            echo "::error::Chart validation gate failed: pass ratio $pass_ratio% must be greater than 70%."
+            exit 1
+          fi
+
+          echo "Chart validation gate passed."
+
+      - name: SonarCloud Scan (Pull Request)
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name == 'pull_request' }}
+        uses: SonarSource/sonarqube-scan-action@v5.0.0
+        with:
+          args: >
+            -Dsonar.projectKey=devops-teamk23_yas
+            -Dsonar.organization=devops-teamk23
+            -Dsonar.sources=k8s/charts
+            -Dsonar.inclusions=k8s/charts/**/*.yaml,k8s/charts/**/templates/**/*.tpl
+            -Dsonar.coverage.exclusions=**/*
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
+            -Dsonar.pullrequest.branch=${{ github.event.pull_request.head.ref }}
+            -Dsonar.pullrequest.base=${{ github.event.pull_request.base.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: SonarCloud Scan (Branch)
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name != 'pull_request' }}
+        uses: SonarSource/sonarqube-scan-action@v5.0.0
+        with:
+          args: >
+            -Dsonar.projectKey=devops-teamk23_yas
+            -Dsonar.organization=devops-teamk23
+            -Dsonar.sources=k8s/charts
+            -Dsonar.inclusions=k8s/charts/**/*.yaml,k8s/charts/**/templates/**/*.tpl
+            -Dsonar.coverage.exclusions=**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Upload Charts Validation Summary
+        if: ${{ success() || failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Charts Validation Summary
+          path: charts-validation-summary.txt
+
   release-charts:
+    needs: run-unit-test
+    if: ${{ github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -26,9 +300,10 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v3.5
 
-      - name: Update dependency
+      - name: Add Helm repositories
         run: |
           helm repo add stakater https://stakater.github.io/stakater-charts
+          helm repo update
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.5.0
