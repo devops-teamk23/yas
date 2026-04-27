@@ -133,6 +133,10 @@ jobs:
           fi
 
           if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
+            if [ -s snyk-results.json ]; then
+              echo "::warning::Snyk returned auth/permission error after producing scan results. Keeping report and continuing."
+              exit 0
+            fi
             echo "::error::Snyk authentication/authorization failed before scan results were produced. Verify token permissions, org access, and SNYK_API_URL."
             exit 2
           fi
