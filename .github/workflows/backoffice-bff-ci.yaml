@@ -250,8 +250,11 @@ jobs:
         with:
           projectBaseDir: backoffice-bff
           args: >
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY_BACKOFFICE_BFF || 'devops-teamk23_yas' }}
-            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION_KEY || 'devops-teamk23' }}
+            -Dsonar.projectKey=devops-teamk23_yas
+            -Dsonar.organization=devops-teamk23
+            -Dsonar.sources=src/main/java
+            -Dsonar.tests=src/test/java
+            -Dsonar.test.inclusions=src/test/java/**/*.java
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
             -Dsonar.java.binaries=target/classes
             -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
@@ -266,8 +269,11 @@ jobs:
         with:
           projectBaseDir: backoffice-bff
           args: >
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY_BACKOFFICE_BFF || 'devops-teamk23_yas' }}
-            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION_KEY || 'devops-teamk23' }}
+            -Dsonar.projectKey=devops-teamk23_yas
+            -Dsonar.organization=devops-teamk23
+            -Dsonar.sources=src/main/java
+            -Dsonar.tests=src/test/java
+            -Dsonar.test.inclusions=src/test/java/**/*.java
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
             -Dsonar.java.binaries=target/classes
         env:
