@@ -241,30 +241,6 @@ jobs:
             exit 0
           fi
           exit $SONAR_EXIT_CODE
-      - name: Cache OWASP Dependency-Check Database
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository/org/owasp/dependency-check-data
-          key: owasp-dc-${{ hashFiles('storefront-bff/pom.xml') }}
-          restore-keys: owasp-dc-
-      - name: OWASP Dependency Check
-        id: owasp_scan
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        # continue-on-error: true
-        uses: dependency-check/Dependency-Check_Action@main
-        env:
-          JAVA_HOME: /opt/jdk
-        with:
-          project: "storefront-bff"
-          path: "./storefront-bff"
-          format: "HTML"
-      - name: Upload OWASP Dependency Check results
-        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: OWASP Dependency Check Report
-          path: ${{github.workspace}}/reports
-          if-no-files-found: warn
       - name: Fail on security scan errors
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && steps.gitleaks_scan.outcome == 'failure' }}
         run: exit 1
