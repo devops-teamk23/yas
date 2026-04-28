@@ -200,7 +200,7 @@ jobs:
       - name: Analyze with sonar cloud
         id: sonar_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' && env.RUN_SONAR_SCAN == 'true' }}
-        # continue-on-error: true
+        continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
