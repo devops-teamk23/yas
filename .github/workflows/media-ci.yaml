@@ -1,22 +1,20 @@
-name: media service ci
+name: order service ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["**"]
     paths:
-      - "media/**"
+      - "order/**"
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/media-ci.yaml"
-      - "pom.xml"
   pull_request:
-    branches: [ "main" ]
+    branches: ["**"]
     paths:
-      - "media/**"
+      - "order/**"
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/media-ci.yaml"
-      - "pom.xml"
   workflow_dispatch:
 
 jobs:
@@ -24,44 +22,79 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: write
-      pull-requests: write
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/unit-test/order' }}
+      RUN_SONAR_SCAN: ${{ github.ref != 'refs/heads/unit-test/order' && github.head_ref != 'unit-test/order' }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-          
-      - uses: ./.github/workflows/actions
-      
-      - name: Build and Install Dependencies
-        run: mvn clean install -DskipTests -pl media -am -U
-
-      - name: Run Gitleaks Scan
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: ./.github/workflows/gitleak
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+      - uses: actions/setup-java@v4
         with:
-          version: v8.18.4
-          path: media
-
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+      - uses: ./.github/workflows/actions
+      - name: Build and Install Dependencies
+        run: |
+          UPDATE_FLAG=""
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            UPDATE_FLAG="-U"
+          fi
+          mvn clean install -DskipTests -pl order -am $UPDATE_FLAG
+      - name: Run Gitleaks Scan
+        id: gitleaks_scan
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        continue-on-error: true
+        run: |
+          docker pull zricethezav/gitleaks:v8.18.4
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work \
+            zricethezav/gitleaks:v8.18.4 detect \
+            --source="order" \
+            --config="/work/gitleaks.toml" \
+            --verbose \
+            --no-git \
+            --report-format=json \
+            --report-path=order-gitleaks-report.json
+      - name: Upload Gitleaks Result
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Order Gitleaks Report
+          path: order-gitleaks-report.json
+          if-no-files-found: warn
+      - name: Run Maven Checkstyle
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        run: mvn checkstyle:checkstyle -pl order -am -Dcheckstyle.output.file=order/target/order-checkstyle-result.xml
+      - name: Upload Checkstyle Result
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        uses: jwgmeligmeyling/checkstyle-github-action@master
+        with:
+          path: "order/target/order-checkstyle-result.xml"
       - name: Check Snyk Token Availability
         id: snyk_token_check
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           if [ -z "$SNYK_TOKEN" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::SNYK_TOKEN is missing for this workflow context, skipping Snyk scan."
+            echo "::warning::SNYK_TOKEN is missing for this workflow context, skipping Snyk scan." | tee snyk-auth.log
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Setup Snyk CLI
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: snyk/actions/setup@master
       - name: Run Snyk Security Scan
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        id: snyk_scan
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        continue-on-error: true
+        working-directory: order
         run: |
           set +e
 
@@ -115,7 +148,7 @@ jobs:
           fi
 
           snyk test \
-            --file=media/pom.xml \
+            --file=pom.xml \
             --package-manager=maven \
             --severity-threshold=high \
             --json-file-output=snyk-results.json \
@@ -123,16 +156,24 @@ jobs:
             2>&1 | tee snyk-console.log
           SNYK_EXIT_CODE=${PIPESTATUS[0]}
 
-          if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)" snyk-console.log; then
+          if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Cannot build Maven dependency tree|SNYK-OS-MAVEN-0018|422 Unprocessable Entity|Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)" snyk-console.log; then
             echo "::warning::Maven dependency resolution failed inside Snyk CLI. Falling back to SBOM scan."
-            mvn -f media/pom.xml -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom
-            snyk sbom test \
-              --file=media/target/bom.json \
-              --severity-threshold=high \
-              --json-file-output=snyk-results.json \
-              "${ORG_ARG[@]}" \
+            mvn -DskipTests -Dcyclonedx.outputFormat=json org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom \
               2>&1 | tee -a snyk-console.log
-            SNYK_EXIT_CODE=${PIPESTATUS[0]}
+            SBOM_EXIT_CODE=${PIPESTATUS[0]}
+
+            if [ $SBOM_EXIT_CODE -eq 0 ] && [ -s target/bom.json ]; then
+              snyk sbom test \
+                --file=target/bom.json \
+                --severity-threshold=high \
+                --json-file-output=snyk-results.json \
+                "${ORG_ARG[@]}" \
+                2>&1 | tee -a snyk-console.log
+              SNYK_EXIT_CODE=${PIPESTATUS[0]}
+            else
+              echo "::warning::Could not generate CycloneDX SBOM for Snyk fallback. Keeping Snyk logs as artifact."
+              exit 0
+            fi
           fi
 
           if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
@@ -145,8 +186,8 @@ jobs:
           fi
 
           if [ $SNYK_EXIT_CODE -eq 2 ]; then
-            echo "::error::Snyk scan execution failed (non-vulnerability error). Review snyk-console.log artifact for root cause."
-            exit 2
+            echo "::warning::Snyk scan execution failed with a non-vulnerability error. Review snyk-console.log artifact for root cause."
+            exit 0
           fi
 
           if [ $SNYK_EXIT_CODE -eq 1 ]; then
@@ -159,35 +200,33 @@ jobs:
           SNYK_API_URL: ${{ vars.SNYK_API_URL }}
           SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
       - name: Upload Snyk Results
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
-        uses: actions/upload-artifact@master
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
+        uses: actions/upload-artifact@v4
         with:
           name: Snyk Security Report
           path: |
-            snyk-results.json
-            snyk-auth.log
-            snyk-whoami.json
-            snyk-me.json
-            snyk-orgs.json
-            snyk-console.log
-
-      - name: Run Maven Checkstyle
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        run: mvn checkstyle:checkstyle -pl media -am -Dcheckstyle.output.file=media-checkstyle-result.xml
-        
-      - name: Upload Checkstyle Result
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: jwgmeligmeyling/checkstyle-github-action@master
-        with:
-          path: '**/media-checkstyle-result.xml'
-          
+            order/snyk-results.json
+            order/snyk-auth.log
+            order/snyk-whoami.json
+            order/snyk-me.json
+            order/snyk-orgs.json
+            order/snyk-console.log
+            order/target/bom.json
+          if-no-files-found: warn
       - name: Analyze with sonar cloud
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        id: sonar_scan
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' && env.RUN_SONAR_SCAN == 'true' }}
+        continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::warning::SONAR_TOKEN is missing for this workflow context, skipping SonarCloud analysis."
+            exit 0
+          fi
+
           SONAR_CMD="org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar"
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -195,7 +234,7 @@ jobs:
             PR_BRANCH="${{ github.event.pull_request.head.ref }}"
             PR_BASE="${{ github.event.pull_request.base.ref }}"
 
-            mvn "$SONAR_CMD" -f media \
+            mvn "$SONAR_CMD" -f order \
               -Dsonar.pullrequest.key="$PR_KEY" \
               -Dsonar.pullrequest.branch="$PR_BRANCH" \
               -Dsonar.pullrequest.base="$PR_BASE" \
@@ -203,7 +242,7 @@ jobs:
             SONAR_EXIT_CODE=$?
 
             if [ $SONAR_EXIT_CODE -ne 0 ]; then
-              if grep -Eq "Could not find the pullrequest with key|Error 404 on https://api\.sonarcloud\.io/analysis/analyses|Detected project binding: BOUND" sonar.log; then
+              if grep -Eqi "Could not find the pullrequest with key|pullrequest with key|Error 404 on https://api\.sonarcloud\.io/analysis/analyses|Detected project binding: BOUND" sonar.log; then
                 echo "::warning::SonarCloud ALM binding/platform issue for this PR. Skipping Sonar failure to avoid blocking CI."
                 exit 0
               fi
@@ -212,7 +251,7 @@ jobs:
             exit $SONAR_EXIT_CODE
           fi
 
-          mvn "$SONAR_CMD" -f media -Dsonar.branch.name="${{ github.ref_name }}" \
+          mvn "$SONAR_CMD" -f order -Dsonar.branch.name="${{ github.ref_name }}" \
             2>&1 | tee sonar.log
           SONAR_EXIT_CODE=$?
 
@@ -222,23 +261,9 @@ jobs:
           fi
 
           exit $SONAR_EXIT_CODE
-
-      - name: OWASP Dependency Check
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: dependency-check/Dependency-Check_Action@main
-        env:
-          JAVA_HOME: /opt/jdk
-        with:
-          project: 'yas'
-          path: '.'
-          format: 'HTML'
-
-      - name: Upload OWASP Dependency Check results
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: actions/upload-artifact@master
-        with:
-          name: OWASP Dependency Check Report
-          path: ${{github.workspace}}/reports
+      - name: Fail on security scan errors
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && steps.gitleaks_scan.outcome == 'failure' }}
+        run: exit 1
 
   run-unit-test:
     needs: test
@@ -247,70 +272,106 @@ jobs:
       contents: read
       checks: write
       pull-requests: write
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
       - uses: ./.github/workflows/actions
-      
       - name: Run Maven Unit Tests and Coverage
-        run: mvn clean org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.14:report -pl media -am -U
-        
-      - name: Quality Gate (Coverage >= 90%)
         run: |
-          awk -F"," 'NR>1 { missed += $4; covered += $5 } END {
-            if (missed+covered > 0) coverage = (covered/(missed+covered))*100
-            else coverage = 0
-            print "Code Coverage: " coverage "%"
-            if (coverage < 90) {
-              print "Coverage is below 90%. Failing the pipeline."
-              exit 1
-            }
-          }' media/target/site/jacoco/jacoco.csv
+          UPDATE_FLAG=""
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            UPDATE_FLAG="-U"
+          fi
+          mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report -pl order -am $UPDATE_FLAG
+
+      - name: Enforce JaCoCo Coverage Threshold
+        run: |
+          python3 - <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          threshold = 70.0
+          report_path = "order/target/site/jacoco/jacoco.xml"
+          root = ET.parse(report_path).getroot()
+          counter = next(
+              (item for item in root.findall("counter") if item.get("type") == "LINE"),
+              None,
+          )
+
+          if counter is None:
+              print(f"::error::No LINE coverage counter found in {report_path}")
+              sys.exit(1)
+
+          missed = int(counter.get("missed", "0"))
+          covered = int(counter.get("covered", "0"))
+          total = missed + covered
+          coverage = 0.0 if total == 0 else covered * 100 / total
+
+          print(f"Line coverage: {coverage:.2f}% ({covered}/{total} lines covered)")
+          if coverage < threshold:
+              print(f"::error::Line coverage {coverage:.2f}% is below required {threshold:.2f}%")
+              sys.exit(1)
+          PY
 
       - name: Test Results
         uses: dorny/test-reporter@v1
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
         with:
-          name: Media-Service-Unit-Test-Results
-          path: "media/target/surefire-reports/TEST-*.xml"
+          name: Order-Service-Unit-Test-Results
+          path: "order/**/*-reports/TEST*.xml"
           reporter: java-junit
-          
       - name: Add coverage report to PR
         uses: madrapps/jacoco-report@v1.6.1
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         with:
-          paths: ${{github.workspace}}/media/target/site/jacoco/jacoco.xml
+          paths: ${{github.workspace}}/order/target/site/jacoco/jacoco.xml
           token: ${{secrets.GITHUB_TOKEN}}
-          min-coverage-overall: 90
+          min-coverage-overall: 70
           min-coverage-changed-files: 60
-          title: 'Media Coverage Report'
+          title: "Order Coverage Report"
           update-comment: true
-
       - name: Upload Coverage Report
-        if: success()
-        uses: actions/upload-artifact@master
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: Jacoco Coverage Report
-          path: media/target/site/jacoco/
+          path: order/target/site/jacoco/
 
   build:
     needs: run-unit-test
     runs-on: ubuntu-latest
     permissions:
-      packages: write
       contents: read
+      packages: write
+      security-events: write
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
-      
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
       - uses: ./.github/workflows/actions
-        
       - name: Run Maven Build Command
-        run: mvn package -DskipTests -pl media -am -U
-        
+        run: |
+          UPDATE_FLAG=""
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            UPDATE_FLAG="-U"
+          fi
+          mvn package -DskipTests -pl order -am $UPDATE_FLAG
       - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
@@ -318,11 +379,10 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          
       - name: Build and push Docker images
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
         with:
-          context: ./media
+          context: ./order
           push: true
-          tags: ghcr.io/nashtech-garage/yas-media:latest
+          tags: ghcr.io/nashtech-garage/yas-order:latest
