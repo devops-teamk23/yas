@@ -18,6 +18,7 @@ import com.yas.tax.viewmodel.location.StateOrProvinceAndCountryGetNameVm;
 import com.yas.tax.viewmodel.taxrate.TaxRateListGetVm;
 import com.yas.tax.viewmodel.taxrate.TaxRatePostVm;
 import com.yas.tax.viewmodel.taxrate.TaxRateVm;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import org.instancio.Instancio;
@@ -253,6 +254,21 @@ public class TaxRateServiceTest {
             Double result = taxRateService.getTaxPercent(1L, 100L, 1L, "12345");
             
             assertThat(result).isEqualTo(0.0);
+        }
+    }
+
+    @Nested
+    @DisplayName("getBulkTaxRate")
+    class GetBulkTaxRateTests {
+        @Test
+        @DisplayName("Should return mapped tax rates for batch lookup")
+        void testGetBulkTaxRate_shouldReturnMappedResults() {
+            when(taxRateRepository.getBatchTaxRates(100L, 1L, "12345", new HashSet<>(List.of(1L))))
+                .thenReturn(List.of(taxRate));
+
+            List<TaxRateVm> result = taxRateService.getBulkTaxRate(List.of(1L), 100L, 1L, "12345");
+
+            assertThat(result).containsExactly(TaxRateVm.fromModel(taxRate));
         }
     }
 
