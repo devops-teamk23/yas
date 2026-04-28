@@ -8,7 +8,6 @@ on:
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/storefront-ci.yaml"
-      - "pom.xml"
   pull_request:
     branches: ["**"]
     paths:
@@ -16,15 +15,17 @@ on:
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/storefront-ci.yaml"
-      - "pom.xml"
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
-      RUN_SECURITY_SCANS: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unit-test/storefront' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/unit-test/storefront' }}
       RUN_SONAR_SCAN: ${{ github.ref != 'refs/heads/unit-test/storefront' && github.head_ref != 'unit-test/storefront' }}
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +57,7 @@ jobs:
             --report-path=storefront-gitleaks-report.json
       - name: Upload Gitleaks Result
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Storefront Gitleaks Report
           path: storefront-gitleaks-report.json
@@ -88,6 +89,7 @@ jobs:
         id: snyk_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         continue-on-error: true
+        working-directory: storefront
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
           SNYK_API_URL: ${{ vars.SNYK_API_URL }}
@@ -145,7 +147,7 @@ jobs:
           fi
 
           snyk test \
-            --file=storefront/package.json \
+            --file=package.json \
             --package-manager=npm \
             --severity-threshold=high \
             --json-file-output=snyk-results.json \
@@ -174,16 +176,16 @@ jobs:
           exit $SNYK_EXIT_CODE
       - name: Upload Snyk Results
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Snyk Security Report
           path: |
-            snyk-results.json
-            snyk-auth.log
-            snyk-whoami.json
-            snyk-me.json
-            snyk-orgs.json
-            snyk-console.log
+            storefront/snyk-results.json
+            storefront/snyk-auth.log
+            storefront/snyk-whoami.json
+            storefront/snyk-me.json
+            storefront/snyk-orgs.json
+            storefront/snyk-console.log
           if-no-files-found: warn
       - name: Analyze with sonar cloud
         if: ${{ env.RUN_SECURITY_SCANS == 'true' && env.RUN_SONAR_SCAN == 'true' }}
@@ -194,31 +196,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      - name: Cache OWASP Dependency-Check Database
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/cache@v3
-        with:
-          path: ~/.m2/repository/org/owasp/dependency-check-data
-          key: storefront-owasp-dc-${{ hashFiles('storefront/package-lock.json') }}
-          restore-keys: storefront-owasp-dc-
-      - name: OWASP Dependency Check
-        id: owasp_scan
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        continue-on-error: true
-        uses: dependency-check/Dependency-Check_Action@main
-        env:
-          JAVA_HOME: /opt/jdk
-        with:
-          project: "storefront"
-          path: "storefront"
-          format: "HTML"
-      - name: Upload OWASP Dependency Check results
-        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@master
-        with:
-          name: OWASP Dependency Check Report
-          path: ${{github.workspace}}/reports
-          if-no-files-found: warn
       - name: Fail on security scan errors
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && steps.gitleaks_scan.outcome == 'failure' }}
         run: exit 1
@@ -226,8 +203,12 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
