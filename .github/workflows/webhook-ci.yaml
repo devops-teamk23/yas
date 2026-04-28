@@ -8,7 +8,6 @@ on:
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/webhook-ci.yaml"
-      - "pom.xml"
   pull_request:
     branches: ["**"]
     paths:
@@ -16,7 +15,6 @@ on:
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/webhook-ci.yaml"
-      - "pom.xml"
   workflow_dispatch:
 
 jobs:
@@ -26,10 +24,11 @@ jobs:
       contents: read
       checks: write
       pull-requests: write
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       CAN_PUBLISH_CHECKS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-      RUN_SECURITY_SCANS: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unit-test/webhook' }}
+      RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/unit-test/webhook' }}
       RUN_SONAR_SCAN: ${{ github.ref != 'refs/heads/unit-test/webhook' && github.head_ref != 'unit-test/webhook' }}
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +65,7 @@ jobs:
             --report-path=webhook-gitleaks-report.json
       - name: Upload Gitleaks Result
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Webhook Gitleaks Report
           path: webhook-gitleaks-report.json
@@ -98,6 +97,7 @@ jobs:
         id: snyk_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         continue-on-error: true
+        working-directory: webhook
         run: |
           set +e
 
@@ -151,7 +151,7 @@ jobs:
           fi
 
           snyk test \
-            --file=webhook/pom.xml \
+            --file=pom.xml \
             --package-manager=maven \
             --severity-threshold=high \
             --json-file-output=snyk-results.json \
@@ -161,13 +161,13 @@ jobs:
 
           if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Cannot build Maven dependency tree|SNYK-OS-MAVEN-0018|422 Unprocessable Entity|Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)" snyk-console.log; then
             echo "::warning::Maven dependency resolution failed inside Snyk CLI. Falling back to SBOM scan."
-            mvn -f webhook/pom.xml -DskipTests -Dcyclonedx.outputFormat=json org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom \
+            mvn -DskipTests -Dcyclonedx.outputFormat=json org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom \
               2>&1 | tee -a snyk-console.log
             SBOM_EXIT_CODE=${PIPESTATUS[0]}
 
-            if [ $SBOM_EXIT_CODE -eq 0 ] && [ -s webhook/target/bom.json ]; then
+            if [ $SBOM_EXIT_CODE -eq 0 ] && [ -s target/bom.json ]; then
               snyk sbom test \
-                --file=webhook/target/bom.json \
+                --file=target/bom.json \
                 --severity-threshold=high \
                 --json-file-output=snyk-results.json \
                 "${ORG_ARG[@]}" \
@@ -204,16 +204,16 @@ jobs:
           SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
       - name: Upload Snyk Results
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Snyk Security Report
           path: |
-            snyk-results.json
-            snyk-auth.log
-            snyk-whoami.json
-            snyk-me.json
-            snyk-orgs.json
-            snyk-console.log
+            webhook/snyk-results.json
+            webhook/snyk-auth.log
+            webhook/snyk-whoami.json
+            webhook/snyk-me.json
+            webhook/snyk-orgs.json
+            webhook/snyk-console.log
             webhook/target/bom.json
           if-no-files-found: warn
       - name: Analyze with sonar cloud
@@ -264,31 +264,6 @@ jobs:
           fi
 
           exit $SONAR_EXIT_CODE
-      - name: Cache OWASP Dependency-Check Database
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/cache@v3
-        with:
-          path: ~/.m2/repository/org/owasp/dependency-check-data
-          key: owasp-dc-${{ hashFiles('webhook/pom.xml') }}
-          restore-keys: owasp-dc-
-      - name: OWASP Dependency Check
-        id: owasp_scan
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        continue-on-error: true
-        uses: dependency-check/Dependency-Check_Action@main
-        env:
-          JAVA_HOME: /opt/jdk
-        with:
-          project: "yas"
-          path: "."
-          format: "HTML"
-      - name: Upload OWASP Dependency Check results
-        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@master
-        with:
-          name: OWASP Dependency Check Report
-          path: ${{github.workspace}}/reports
-          if-no-files-found: warn
       - name: Fail on security scan errors
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && steps.gitleaks_scan.outcome == 'failure' }}
         run: exit 1
@@ -300,8 +275,9 @@ jobs:
       contents: read
       checks: write
       pull-requests: write
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       CAN_PUBLISH_CHECKS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
@@ -372,7 +348,7 @@ jobs:
           update-comment: true
       - name: Upload Coverage Report
         if: always()
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Jacoco Coverage Report
           path: webhook/target/site/jacoco/
@@ -380,8 +356,12 @@ jobs:
   build:
     needs: run-unit-test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
