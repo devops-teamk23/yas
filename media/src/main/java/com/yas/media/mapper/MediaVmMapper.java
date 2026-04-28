@@ -20,6 +20,7 @@ public interface MediaVmMapper extends BaseMapper<Media, MediaVm> {
     MediaVm toVm(Media m);
 
     @Override
+    @org.mapstruct.BeanMapping(nullValuePropertyMappingStrategy = org.mapstruct.NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "filePath", ignore = true)
     void partialUpdate(@MappingTarget Media m, MediaVm v);
 }
