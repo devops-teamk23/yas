@@ -22,9 +22,12 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
-      RUN_SECURITY_SCANS: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unit-test/storefront-bff' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/unit-test/storefront-bff' }}
       RUN_SONAR_SCAN: ${{ github.ref != 'refs/heads/unit-test/storefront-bff' && github.head_ref != 'unit-test/storefront-bff' }}
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +64,7 @@ jobs:
             --report-path=storefront-bff-gitleaks-report.json
       - name: Upload Gitleaks Result
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Storefront-BFF Gitleaks Report
           path: storefront-bff-gitleaks-report.json
@@ -93,6 +96,7 @@ jobs:
         id: snyk_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         continue-on-error: true
+        working-directory: storefront-bff
         run: |
           set +e
           SNYK_API_EFFECTIVE="https://api.snyk.io"
@@ -137,7 +141,7 @@ jobs:
             echo "::warning::No effective Snyk org found. Scan will use token default org context." | tee -a snyk-auth.log
           fi
           snyk test \
-            --file=storefront-bff/pom.xml \
+            --file=pom.xml \
             --package-manager=maven \
             --severity-threshold=high \
             --json-file-output=snyk-results.json \
@@ -146,12 +150,12 @@ jobs:
           SNYK_EXIT_CODE=${PIPESTATUS[0]}
           if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Cannot build Maven dependency tree|SNYK-OS-MAVEN-0018|422 Unprocessable Entity|Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \\(SNYK-CLI-0000\\)" snyk-console.log; then
             echo "::warning::Maven dependency resolution failed inside Snyk CLI. Falling back to SBOM scan."
-            mvn -f storefront-bff/pom.xml -DskipTests -Dcyclonedx.outputFormat=json org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom \
+            mvn -DskipTests -Dcyclonedx.outputFormat=json org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom \
               2>&1 | tee -a snyk-console.log
             SBOM_EXIT_CODE=${PIPESTATUS[0]}
-            if [ $SBOM_EXIT_CODE -eq 0 ] && [ -s storefront-bff/target/bom.json ]; then
+            if [ $SBOM_EXIT_CODE -eq 0 ] && [ -s target/bom.json ]; then
               snyk sbom test \
-                --file=storefront-bff/target/bom.json \
+                --file=target/bom.json \
                 --severity-threshold=high \
                 --json-file-output=snyk-results.json \
                 "${ORG_ARG[@]}" \
@@ -185,16 +189,16 @@ jobs:
           SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
       - name: Upload Snyk Results
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Snyk Security Report
           path: |
-            snyk-results.json
-            snyk-auth.log
-            snyk-whoami.json
-            snyk-me.json
-            snyk-orgs.json
-            snyk-console.log
+            storefront-bff/snyk-results.json
+            storefront-bff/snyk-auth.log
+            storefront-bff/snyk-whoami.json
+            storefront-bff/snyk-me.json
+            storefront-bff/snyk-orgs.json
+            storefront-bff/snyk-console.log
             storefront-bff/target/bom.json
           if-no-files-found: warn
       - name: Analyze with sonar cloud
@@ -238,7 +242,7 @@ jobs:
           fi
           exit $SONAR_EXIT_CODE
       - name: Cache OWASP Dependency-Check Database
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.m2/repository/org/owasp/dependency-check-data
           key: owasp-dc-${{ hashFiles('storefront-bff/pom.xml') }}
@@ -251,12 +255,12 @@ jobs:
         env:
           JAVA_HOME: /opt/jdk
         with:
-          project: "yas"
-          path: "."
+          project: "storefront-bff"
+          path: "./storefront-bff"
           format: "HTML"
       - name: Upload OWASP Dependency Check results
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: OWASP Dependency Check Report
           path: ${{github.workspace}}/reports
@@ -272,8 +276,9 @@ jobs:
       contents: read
       checks: write
       pull-requests: write
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -348,7 +353,7 @@ jobs:
           update-comment: true
       - name: Upload Coverage Report
         if: always()
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: Jacoco Coverage Report
           path: storefront-bff/target/site/jacoco/
@@ -359,8 +364,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
