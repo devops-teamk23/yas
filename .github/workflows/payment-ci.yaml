@@ -152,7 +152,7 @@ jobs:
 
           if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)" snyk-console.log; then
             echo "::warning::Snyk Maven scan hit known dependency resolution/runtime issue. Falling back to SBOM scan."
-            mvn -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom -DoutputName=bom
+            mvn -f ../pom.xml -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom -pl payment -am -DoutputName=bom -Dcyclonedx.outputFormat=json
             SBOM_EXIT_CODE=$?
 
             if [ $SBOM_EXIT_CODE -ne 0 ] || [ ! -s "target/bom.json" ]; then
