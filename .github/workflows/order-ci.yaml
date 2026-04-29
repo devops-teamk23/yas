@@ -289,45 +289,57 @@ jobs:
 
           print("Coverage gate passed.")
           PY
-      - name: SonarCloud Scan (Pull Request)
-        # Đáng lẽ nên skip ở các nhánh test: && !startsWith(github.head_ref, 'unit-test/')
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name == 'pull_request' }}
-        # continue-on-error: true
-        uses: SonarSource/sonarqube-scan-action@v5.0.0
-        with:
-          projectBaseDir: order
-          args: >
-            -Dsonar.projectKey=devops-teamk23_yas
-            -Dsonar.organization=devops-teamk23
-            -Dsonar.sources=src/main/java
-            -Dsonar.tests=src/test/java
-            -Dsonar.test.inclusions=src/test/java/**/*.java
-            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-            -Dsonar.java.binaries=target/classes
-            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
-            -Dsonar.pullrequest.branch=${{ github.event.pull_request.head.ref }}
-            -Dsonar.pullrequest.base=${{ github.event.pull_request.base.ref }}
+      - name: Analyze with sonar cloud
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      - name: SonarCloud Scan (Branch)
-        # Đáng lẽ nên skip ở các nhánh test: && !startsWith(github.ref, 'refs/heads/unit-test/')
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name != 'pull_request' }}
-        # continue-on-error: true
-        uses: SonarSource/sonarqube-scan-action@v5.0.0
-        with:
-          projectBaseDir: order
-          args: >
-            -Dsonar.projectKey=devops-teamk23_yas
-            -Dsonar.organization=devops-teamk23
-            -Dsonar.sources=src/main/java
-            -Dsonar.tests=src/test/java
-            -Dsonar.test.inclusions=src/test/java/**/*.java
-            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-            -Dsonar.java.binaries=target/classes
-        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set +e
+          SONAR_CMD="org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_KEY="${{ github.event.pull_request.number }}"
+            PR_BRANCH="${{ github.event.pull_request.head.ref }}"
+            PR_BASE="${{ github.event.pull_request.base.ref }}"
+
+            mvn "$SONAR_CMD" -f order \
+              -Dsonar.pullrequest.key="$PR_KEY" \
+              -Dsonar.pullrequest.branch="$PR_BRANCH" \
+              -Dsonar.pullrequest.base="$PR_BASE" \
+              -Dsonar.projectKey=devops-teamk23_yas \
+              -Dsonar.organization=devops-teamk23 \
+              -Dsonar.sources=src/main/java \
+              -Dsonar.tests=src/test/java \
+              -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+              -Dsonar.java.binaries=target/classes \
+              2>&1 | tee sonar.log
+            SONAR_EXIT_CODE=$?
+
+            if [ $SONAR_EXIT_CODE -ne 0 ]; then
+              if grep -Eqi "Could not find the pullrequest with key|Error 404 on https://api\.sonarcloud\.io/analysis/analyses|Detected project binding: BOUND" sonar.log; then
+                echo "::warning::SonarCloud ALM binding/platform issue for this PR. Skipping Sonar failure to avoid blocking CI."
+                exit 0
+              fi
+            fi
+            exit $SONAR_EXIT_CODE
+          fi
+
+          mvn "$SONAR_CMD" -f order -Dsonar.branch.name="${{ github.ref_name }}" \
+            -Dsonar.projectKey=devops-teamk23_yas \
+            -Dsonar.organization=devops-teamk23 \
+            -Dsonar.sources=src/main/java \
+            -Dsonar.tests=src/test/java \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+            -Dsonar.java.binaries=target/classes \
+            2>&1 | tee sonar.log
+          SONAR_EXIT_CODE=$?
+
+          if [ $SONAR_EXIT_CODE -ne 0 ] && grep -Eqi "Error 404 on https://api\.sonarcloud\.io/analysis/analyses" sonar.log; then
+            echo "::warning::SonarCloud analysis API returned 404. Skipping Sonar failure for platform-side issue."
+            exit 0
+          fi
+          exit $SONAR_EXIT_CODE
       - name: Test Results
         uses: dorny/test-reporter@v1
         if: ${{ always() && env.FROM_ORIGINAL_REPOSITORY == 'true' }}
