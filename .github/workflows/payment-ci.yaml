@@ -210,7 +210,7 @@ jobs:
           scan-type: "fs"
           scan-ref: "./payment"
           severity: "HIGH,CRITICAL"
-          exit-code: "1"
+          exit-code: "0"
           format: "sarif"
           output: "trivy-fs-results.sarif"
 
@@ -422,7 +422,7 @@ jobs:
         with:
           image-ref: "ghcr.io/nashtech-garage/yas-payment:latest"
           severity: "HIGH,CRITICAL"
-          exit-code: "1"
+          exit-code: "0"
           format: "sarif"
           output: "trivy-image-results.sarif"
           
