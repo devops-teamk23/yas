@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -132,10 +133,13 @@ class ProductServiceTest {
 
     @Test
     void getProductsWithFilter_ReturnProductListGetVm() {
-        org.springframework.data.domain.Page<Product> productPage = new org.springframework.data.domain.PageImpl<>(List.of(product), PageRequest.of(0, 10), 1);
-        when(productRepository.getProductsWithFilter(any(String.class), any(String.class), any(Pageable.class))).thenReturn(productPage);
+        org.springframework.data.domain.Page<Product> productPage = new org.springframework.data.domain.PageImpl<>(
+                List.of(product), PageRequest.of(0, 10), 1);
+        when(productRepository.getProductsWithFilter(any(String.class), any(String.class), any(Pageable.class)))
+                .thenReturn(productPage);
 
-        com.yas.product.viewmodel.product.ProductListGetVm result = productService.getProductsWithFilter(0, 10, "Test", "Brand");
+        com.yas.product.viewmodel.product.ProductListGetVm result = productService.getProductsWithFilter(0, 10, "Test",
+                "Brand");
 
         assertThat(result).isNotNull();
         assertThat(result.productContent()).hasSize(1);
@@ -152,15 +156,18 @@ class ProductServiceTest {
     void getProductsFromCategory_ReturnProducts() {
         Category category = new Category();
         when(categoryRepository.findBySlug("cat")).thenReturn(Optional.of(category));
-        
+
         ProductCategory productCategory = new ProductCategory();
         productCategory.setProduct(product);
-        org.springframework.data.domain.Page<ProductCategory> page = new org.springframework.data.domain.PageImpl<>(List.of(productCategory), PageRequest.of(0, 10), 1);
+        org.springframework.data.domain.Page<ProductCategory> page = new org.springframework.data.domain.PageImpl<>(
+                List.of(productCategory), PageRequest.of(0, 10), 1);
         when(productCategoryRepository.findAllByCategory(any(Pageable.class), eq(category))).thenReturn(page);
-        
-        when(mediaService.getMedia(1L)).thenReturn(new NoFileMediaVm(1L, "caption", "filename", "mediaType", "http://image.url"));
 
-        com.yas.product.viewmodel.product.ProductListGetFromCategoryVm result = productService.getProductsFromCategory(0, 10, "cat");
+        when(mediaService.getMedia(1L))
+                .thenReturn(new NoFileMediaVm(1L, "caption", "filename", "mediaType", "http://image.url"));
+
+        com.yas.product.viewmodel.product.ProductListGetFromCategoryVm result = productService
+                .getProductsFromCategory(0, 10, "cat");
 
         assertThat(result).isNotNull();
         assertThat(result.productContent()).hasSize(1);
@@ -169,9 +176,11 @@ class ProductServiceTest {
 
     @Test
     void getListFeaturedProducts_ReturnFeaturedProducts() {
-        org.springframework.data.domain.Page<Product> productPage = new org.springframework.data.domain.PageImpl<>(List.of(product), PageRequest.of(0, 10), 1);
+        org.springframework.data.domain.Page<Product> productPage = new org.springframework.data.domain.PageImpl<>(
+                List.of(product), PageRequest.of(0, 10), 1);
         when(productRepository.getFeaturedProduct(any(Pageable.class))).thenReturn(productPage);
-        when(mediaService.getMedia(1L)).thenReturn(new NoFileMediaVm(1L, "caption", "filename", "mediaType", "http://image.url"));
+        when(mediaService.getMedia(1L))
+                .thenReturn(new NoFileMediaVm(1L, "caption", "filename", "mediaType", "http://image.url"));
 
         com.yas.product.viewmodel.product.ProductFeatureGetVm result = productService.getListFeaturedProducts(0, 10);
 
@@ -201,11 +210,15 @@ class ProductServiceTest {
 
     @Test
     void getProductsByMultiQuery_Success() {
-        org.springframework.data.domain.Page<Product> productPage = new org.springframework.data.domain.PageImpl<>(List.of(product), PageRequest.of(0, 10), 1);
-        when(productRepository.findByProductNameAndCategorySlugAndPriceBetween(anyString(), anyString(), any(), any(), any(Pageable.class))).thenReturn(productPage);
-        when(mediaService.getMedia(1L)).thenReturn(new NoFileMediaVm(1L, "caption", "filename", "mediaType", "http://image.url"));
+        org.springframework.data.domain.Page<Product> productPage = new org.springframework.data.domain.PageImpl<>(
+                List.of(product), PageRequest.of(0, 10), 1);
+        when(productRepository.findByProductNameAndCategorySlugAndPriceBetween(anyString(), anyString(), any(), any(),
+                any(Pageable.class))).thenReturn(productPage);
+        when(mediaService.getMedia(1L))
+                .thenReturn(new NoFileMediaVm(1L, "caption", "filename", "mediaType", "http://image.url"));
 
-        com.yas.product.viewmodel.product.ProductsGetVm result = productService.getProductsByMultiQuery(0, 10, "Test", "Cat", 10.0, 100.0);
+        com.yas.product.viewmodel.product.ProductsGetVm result = productService.getProductsByMultiQuery(0, 10, "Test",
+                "Cat", 10.0, 100.0);
 
         assertThat(result).isNotNull();
         assertThat(result.productContent()).hasSize(1);
@@ -219,7 +232,8 @@ class ProductServiceTest {
         product.setBrand(brand);
         when(productRepository.getExportingProducts(anyString(), anyString())).thenReturn(List.of(product));
 
-        List<com.yas.product.viewmodel.product.ProductExportingDetailVm> result = productService.exportProducts("test", "brand");
+        List<com.yas.product.viewmodel.product.ProductExportingDetailVm> result = productService.exportProducts("test",
+                "brand");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).id()).isEqualTo(1L);
@@ -284,9 +298,9 @@ class ProductServiceTest {
     @Test
     void getProductsForWarehouse_Success() {
         when(productRepository.findProductForWarehouse(anyString(), anyString(), any(), anyString()))
-            .thenReturn(List.of(product));
+                .thenReturn(List.of(product));
         var result = productService.getProductsForWarehouse("name", "sku", List.of(1L),
-            com.yas.product.model.enumeration.FilterExistInWhSelection.ALL);
+                com.yas.product.model.enumeration.FilterExistInWhSelection.ALL);
         assertThat(result).hasSize(1);
     }
 
@@ -295,7 +309,7 @@ class ProductServiceTest {
         product.setStockQuantity(100L);
         when(productRepository.findAllByIdIn(List.of(1L))).thenReturn(List.of(product));
         productService.updateProductQuantity(List.of(
-            new com.yas.product.viewmodel.product.ProductQuantityPostVm(1L, 50L)));
+                new com.yas.product.viewmodel.product.ProductQuantityPostVm(1L, 50L)));
         verify(productRepository).saveAll(any());
     }
 
@@ -305,7 +319,7 @@ class ProductServiceTest {
         product.setStockTrackingEnabled(true);
         when(productRepository.findAllByIdIn(any())).thenReturn(List.of(product));
         productService.subtractStockQuantity(List.of(
-            new com.yas.product.viewmodel.product.ProductQuantityPutVm(1L, 30L)));
+                new com.yas.product.viewmodel.product.ProductQuantityPutVm(1L, 30L)));
         verify(productRepository).saveAll(any());
     }
 
@@ -315,7 +329,7 @@ class ProductServiceTest {
         product.setStockTrackingEnabled(true);
         when(productRepository.findAllByIdIn(any())).thenReturn(List.of(product));
         productService.restoreStockQuantity(List.of(
-            new com.yas.product.viewmodel.product.ProductQuantityPutVm(1L, 30L)));
+                new com.yas.product.viewmodel.product.ProductQuantityPutVm(1L, 30L)));
         verify(productRepository).saveAll(any());
     }
 
@@ -346,7 +360,7 @@ class ProductServiceTest {
         brand.setId(2L);
         product.setBrand(brand);
         org.springframework.data.domain.Page<Product> page = new org.springframework.data.domain.PageImpl<>(
-            List.of(product), PageRequest.of(0, 10), 1);
+                List.of(product), PageRequest.of(0, 10), 1);
         when(productRepository.findAllPublishedProductsByIds(any(), any(Pageable.class))).thenReturn(page);
         when(mediaService.getMedia(1L)).thenReturn(new NoFileMediaVm(1L, "cap", "file", "type", "url"));
         var result = productService.getProductCheckoutList(0, 10, List.of(1L));
@@ -385,10 +399,10 @@ class ProductServiceTest {
     @Test
     void createProduct_NoVariations_Success() {
         var postVm = new com.yas.product.viewmodel.product.ProductPostVm(
-            "New", "new-slug", null, List.of(), "short", "desc", "spec",
-            "sku1", "gtin1", 1.0, null, 10.0, 5.0, 3.0, 99.0,
-            true, true, false, true, false, "mt", "mk", "md",
-            1L, List.of(), List.of(), List.of(), List.of(), List.of(), 1L);
+                "New", "new-slug", null, List.of(), "short", "desc", "spec",
+                "sku1", "gtin1", 1.0, null, 10.0, 5.0, 3.0, 99.0,
+                true, true, false, true, false, "mt", "mk", "md",
+                1L, List.of(), List.of(), List.of(), List.of(), List.of(), 1L);
         Product saved = new Product();
         saved.setId(10L);
         saved.setName("New");
@@ -409,26 +423,26 @@ class ProductServiceTest {
     @Test
     void createProduct_LengthLessThanWidth_ThrowException() {
         var postVm = new com.yas.product.viewmodel.product.ProductPostVm(
-            "New", "new-slug", null, List.of(), "short", "desc", "spec",
-            "sku1", "gtin1", 1.0, null, 5.0, 10.0, 3.0, 99.0,
-            true, true, false, true, false, "mt", "mk", "md",
-            1L, List.of(), List.of(), List.of(), List.of(), List.of(), 1L);
+                "New", "new-slug", null, List.of(), "short", "desc", "spec",
+                "sku1", "gtin1", 1.0, null, 5.0, 10.0, 3.0, 99.0,
+                true, true, false, true, false, "mt", "mk", "md",
+                1L, List.of(), List.of(), List.of(), List.of(), List.of(), 1L);
         assertThrows(com.yas.commonlibrary.exception.BadRequestException.class,
-            () -> productService.createProduct(postVm));
+                () -> productService.createProduct(postVm));
     }
 
     @Test
     void createProduct_DuplicateSlug_ThrowException() {
         var postVm = new com.yas.product.viewmodel.product.ProductPostVm(
-            "New", "dup-slug", null, List.of(), "short", "desc", "spec",
-            "sku1", "gtin1", 1.0, null, 10.0, 5.0, 3.0, 99.0,
-            true, true, false, true, false, "mt", "mk", "md",
-            1L, List.of(), List.of(), List.of(), List.of(), List.of(), 1L);
+                "New", "dup-slug", null, List.of(), "short", "desc", "spec",
+                "sku1", "gtin1", 1.0, null, 10.0, 5.0, 3.0, 99.0,
+                true, true, false, true, false, "mt", "mk", "md",
+                1L, List.of(), List.of(), List.of(), List.of(), List.of(), 1L);
         Product existing = new Product();
         existing.setId(99L);
         when(productRepository.findBySlugAndIsPublishedTrue("dup-slug")).thenReturn(Optional.of(existing));
         assertThrows(com.yas.commonlibrary.exception.DuplicatedException.class,
-            () -> productService.createProduct(postVm));
+                () -> productService.createProduct(postVm));
     }
 
     @Test
@@ -485,9 +499,9 @@ class ProductServiceTest {
         related.setPublished(true);
         related.setThumbnailMediaId(2L);
         var pr = com.yas.product.model.ProductRelated.builder()
-            .product(product).relatedProduct(related).build();
-        org.springframework.data.domain.Page<com.yas.product.model.ProductRelated> page =
-            new org.springframework.data.domain.PageImpl<>(List.of(pr), PageRequest.of(0, 10), 1);
+                .product(product).relatedProduct(related).build();
+        org.springframework.data.domain.Page<com.yas.product.model.ProductRelated> page = new org.springframework.data.domain.PageImpl<>(
+                List.of(pr), PageRequest.of(0, 10), 1);
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productRelatedRepository.findAllByProduct(eq(product), any(Pageable.class))).thenReturn(page);
         when(mediaService.getMedia(2L)).thenReturn(new NoFileMediaVm(2L, "c", "f", "t", "url2"));
@@ -523,7 +537,7 @@ class ProductServiceTest {
         var po = new com.yas.product.model.ProductOption();
         po.setId(10L);
         var combo = com.yas.product.model.ProductOptionCombination.builder()
-            .product(variation).productOption(po).value("Red").build();
+                .product(variation).productOption(po).value("Red").build();
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productOptionCombinationRepository.findAllByProduct(variation)).thenReturn(List.of(combo));
         var result = productService.getProductVariationsByParentId(1L);
@@ -537,7 +551,7 @@ class ProductServiceTest {
         product.setStockTrackingEnabled(false);
         when(productRepository.findAllByIdIn(any())).thenReturn(List.of(product));
         productService.subtractStockQuantity(List.of(
-            new com.yas.product.viewmodel.product.ProductQuantityPutVm(1L, 30L)));
+                new com.yas.product.viewmodel.product.ProductQuantityPutVm(1L, 30L)));
         assertThat(product.getStockQuantity()).isEqualTo(100L);
     }
 
@@ -552,5 +566,39 @@ class ProductServiceTest {
     void updateProduct_NotFound_ThrowException() {
         when(productRepository.findById(99L)).thenReturn(Optional.empty());
         assertThrows(NotFoundException.class, () -> productService.updateProduct(99L, null));
+    }
+
+    @Test
+    void updateProduct_Success() {
+        // productOptionValues must have entries to avoid BadRequestException,
+        // but variations should be empty to hit early return at line 404
+        var optVal = new com.yas.product.viewmodel.productoption.ProductOptionValuePutVm(
+                10L, "COLOR", 1, List.of("Red"));
+        var putVm = new com.yas.product.viewmodel.product.ProductPutVm(
+                "Upd", "upd-slug", 10.0, true, true, false, true, false,
+                2L, List.of(), "short", "desc", "spec", "sku", "gtin",
+                1.0, null, 10.0, 5.0, 3.0, "mt", "mk", "md",
+                1L, List.of(), List.of(), List.of(optVal), List.of(), List.of(), 1L);
+
+        product.setProductImages(List.of());
+        product.setProducts(List.of());
+
+        var po = new com.yas.product.model.ProductOption();
+        po.setId(10L);
+
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productRepository.findBySlugAndIsPublishedTrue("upd-slug")).thenReturn(Optional.empty());
+        when(productRepository.findBySkuAndIsPublishedTrue("sku")).thenReturn(Optional.empty());
+        when(productRepository.findByGtinAndIsPublishedTrue("gtin")).thenReturn(Optional.empty());
+        when(brandRepository.findById(2L)).thenReturn(Optional.of(new Brand()));
+        when(productCategoryRepository.findAllByProductId(1L)).thenReturn(List.of());
+        when(productOptionRepository.findAllByIdIn(List.of(10L))).thenReturn(List.of(po));
+        lenient().when(productOptionValueRepository.findAllByProduct(product)).thenReturn(List.of());
+        when(productImageRepository.saveAll(any())).thenReturn(List.of());
+        when(productRepository.saveAll(any())).thenReturn(List.of());
+        when(productRepository.findAllById(any())).thenReturn(List.of());
+
+        productService.updateProduct(1L, putVm);
+        // variations is empty, so the method should return early at line 404-405
     }
 }
