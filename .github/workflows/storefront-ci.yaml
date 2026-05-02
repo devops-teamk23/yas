@@ -226,7 +226,7 @@ jobs:
         working-directory: storefront
       - name: SonarCloud Scan (Pull Request)
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name == 'pull_request' }}
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@v7
         with:
           projectBaseDir: storefront
         env:
@@ -234,7 +234,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: SonarCloud Scan (Branch)
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name != 'pull_request' }}
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@v7
         with:
           projectBaseDir: storefront
           args: -Dsonar.branch.name=${{ github.ref_name }}
