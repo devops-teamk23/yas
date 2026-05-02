@@ -10,7 +10,7 @@ on:
       - ".github/workflows/backoffice-bff-ci.yaml"
       - "pom.xml"
   pull_request:
-    branches: ["main", "unit-test/backoffice-bff"]
+    branches: ["main"]
     paths:
       - "backoffice-bff/**"
       - ".github/workflows/actions/action.yaml"
@@ -188,7 +188,7 @@ jobs:
           scan-type: "fs"
           scan-ref: "./backoffice-bff"
           severity: "HIGH,CRITICAL"
-          exit-code: 0
+          exit-code: "0"
           ignore-unfixed: true
           format: "sarif"
           output: "trivy-fs-results.sarif"
@@ -204,7 +204,7 @@ jobs:
             backoffice-bff/out
       - name: Upload Trivy fs scan results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-fs-results.sarif"
 
@@ -218,10 +218,11 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      COVERAGE_THRESHOLD: 70
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - uses: ./.github/workflows/actions
       - name: Run Maven Unit Tests and Coverage
         run: mvn clean org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.14:report -pl backoffice-bff -am -U
@@ -259,7 +260,7 @@ jobs:
               sys.exit(2)
 
           coverage = covered * 100.0 / total
-          threshold = 70.0
+          threshold = float(os.environ.get("COVERAGE_THRESHOLD", "70"))
           print(f"Line coverage: {coverage:.2f}% (required > {threshold:.0f}%)")
 
           if coverage <= threshold:
@@ -329,7 +330,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - uses: ./.github/workflows/actions
       - name: Run Maven Build Command
         run: mvn package -DskipTests -pl backoffice-bff -am -U
@@ -340,11 +341,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
         with:
           context: ./backoffice-bff
+          push: false
+          load: true
           tags: ghcr.io/nashtech-garage/yas-backoffice-bff:latest
       - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -357,11 +361,9 @@ jobs:
           output: "trivy-image-results.sarif"
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backoffice-bff
-          push: true
-          tags: ghcr.io/nashtech-garage/yas-backoffice-bff:latest
+        run: |
+          docker push ghcr.io/nashtech-garage/yas-backoffice-bff:latest
+
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: github/codeql-action/upload-sarif@v3
