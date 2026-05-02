@@ -9,6 +9,10 @@ inputs:
     description: "Path to scan (relative to repo root)"
     required: false
     default: "."
+  report-path:
+    description: "Path to save the Gitleaks report (relative to repo root)"
+    required: true
+    default: "gitleaks-report.json"
 
 runs:
   using: "composite"
@@ -21,7 +25,6 @@ runs:
     - name: Run Gitleaks Scan
       shell: bash
       run: |
-        set +e
         echo "Scanning path: ${{ inputs.path }}"
         docker pull zricethezav/gitleaks:${{ inputs.version }}
         docker run --rm \
@@ -30,20 +33,7 @@ runs:
           zricethezav/gitleaks:${{ inputs.version }} detect \
           --source="${{ inputs.path }}" \
           --config="/work/gitleaks.toml" \
-          --report-format=json \
-          --report-path="/work/gitleaks-report.json" \
+          --report-path="${{ inputs.report-path }}" \
           --verbose \
+          --report-format=json \
           --no-git
-        GITLEAKS_EXIT_CODE=$?
-
-        if [ $GITLEAKS_EXIT_CODE -eq 1 ]; then
-          echo "::warning::Gitleaks found potential secrets. CI continues by policy; review gitleaks-report.json artifact."
-          exit 0
-        fi
-
-        if [ $GITLEAKS_EXIT_CODE -ne 0 ]; then
-          echo "::error::Gitleaks execution failed with exit code $GITLEAKS_EXIT_CODE."
-          exit $GITLEAKS_EXIT_CODE
-        fi
-
-        echo "Gitleaks completed successfully with no findings."

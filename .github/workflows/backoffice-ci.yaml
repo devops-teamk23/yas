@@ -1,8 +1,9 @@
+# hi x2
 name: backoffice service ci
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "unit-test/backoffice"]
     paths:
       - "backoffice/**"
       - ".github/workflows/actions/action.yaml"
@@ -10,7 +11,7 @@ on:
       - ".github/workflows/backoffice-ci.yaml"
       - "pom.xml"
   pull_request:
-    branches: ["**"]
+    branches: ["main"]
     paths:
       - "backoffice/**"
       - ".github/workflows/actions/action.yaml"
@@ -27,10 +28,12 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: ./.github/workflows/actions
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -114,16 +117,20 @@ jobs:
           name: Backoffice NPM Audit Report
           path: backoffice/npm-audit.json
       - name: Run Gitleaks Scan
+        id: gitleaks_scan
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
         uses: ./.github/workflows/gitleak
         with:
-          version: v8.18.4
-          path: backoffice
-      - name: Upload Gitleaks results
-        if: ${{ success() || failure() }}
+          version: "v8.18.4"
+          path: "backoffice"
+          report-path: "backoffice-gitleaks-report.json"
+      - name: Upload Gitleaks Result
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: Backoffice Gitleaks Report
-          path: gitleaks-report.json
+          path: backoffice-gitleaks-report.json
+          if-no-files-found: warn
       - name: Check Snyk Token Availability
         id: snyk_token_check
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
@@ -235,11 +242,21 @@ jobs:
           scan-ref: "./backoffice"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
+          ignore-unfixed: true
           format: "sarif"
           output: "trivy-fs-results.sarif"
+          skip-dirs: |
+            .git
+            .github
+            .m2
+            backoffice/.idea
+            backoffice/node_modules
+            backoffice/.next
+            backoffice/build
+            backoffice/out
       - name: Upload Trivy fs scan results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-fs-results.sarif"
 
@@ -253,10 +270,12 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      COVERAGE_THRESHOLD: 70
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: ./.github/workflows/actions
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -286,7 +305,7 @@ jobs:
             process.exit(2);
           }
 
-          const threshold = 70;
+          const threshold = Number(process.env.COVERAGE_THRESHOLD || 70);
           console.log(`Line coverage: ${linePct}% (required > ${threshold}%)`);
 
           if (linePct <= threshold) {
@@ -346,10 +365,12 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      ORG_REPO: devops-teamk23
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+      - uses: ./.github/workflows/actions
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -371,25 +392,24 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./backoffice
-          tags: ghcr.io/nashtech-garage/yas-backoffice:latest
+          push: false
+          load: true
+          tags: ghcr.io/${{ env.ORG_REPO }}/yas-backoffice:latest
       - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "ghcr.io/nashtech-garage/yas-backoffice:latest"
+          image-ref: "ghcr.io/${{ env.ORG_REPO }}/yas-backoffice:latest"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
           format: "sarif"
           output: "trivy-image-results.sarif"
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v6
-        with:
-          push: true
-          context: ./backoffice
-          tags: ghcr.io/nashtech-garage/yas-backoffice:latest
+        run: |
+          docker push ghcr.io/${{ env.ORG_REPO }}/yas-backoffice:latest
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-image-results.sarif"
