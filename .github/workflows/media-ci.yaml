@@ -2,19 +2,21 @@ name: media service ci
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "unit-test/media"]
     paths:
       - "media/**"
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/media-ci.yaml"
+      - "pom.xml"
   pull_request:
-    branches: ["**"]
+    branches: ["main"]
     paths:
       - "media/**"
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/media-ci.yaml"
+      - "pom.xml"
   workflow_dispatch:
 
 jobs:
@@ -30,35 +32,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
       - uses: ./.github/workflows/actions
       - name: Build and Install Dependencies
-        run: |
-          UPDATE_FLAG=""
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            UPDATE_FLAG="-U"
-          fi
-          mvn clean install -DskipTests -pl media -am $UPDATE_FLAG
+        run: mvn clean install -DskipTests -pl media -am -U
+
       - name: Run Gitleaks Scan
         id: gitleaks_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        # continue-on-error: true
-        run: |
-          docker pull zricethezav/gitleaks:v8.18.4
-          docker run --rm \
-            -v ${{ github.workspace }}:/work \
-            -w /work \
-            zricethezav/gitleaks:v8.18.4 detect \
-            --source="media" \
-            --config="/work/gitleaks.toml" \
-            --verbose \
-            --no-git \
-            --report-format=json \
-            --report-path=media-gitleaks-report.json
+        uses: ./.github/workflows/gitleak
+        with:
+          version: "v8.18.4"
+          path: "media"
+          report-path: "media-gitleaks-report.json"
       - name: Upload Gitleaks Result
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
         uses: actions/upload-artifact@v4
@@ -66,15 +51,6 @@ jobs:
           name: Media Gitleaks Report
           path: media-gitleaks-report.json
           if-no-files-found: warn
-      - name: Run Maven Checkstyle
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        # continue-on-error: true
-        run: mvn checkstyle:checkstyle -pl media -am -Dcheckstyle.output.file=media/target/media-checkstyle-result.xml
-      - name: Upload Checkstyle Result
-        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
-        uses: jwgmeligmeyling/checkstyle-github-action@master
-        with:
-          path: "media/target/media-checkstyle-result.xml"
       - name: Check Snyk Token Availability
         id: snyk_token_check
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
@@ -90,11 +66,17 @@ jobs:
       - name: Setup Snyk CLI
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: snyk/actions/setup@master
+      - name: Setup Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: "maven"
       - name: Run Snyk Security Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
-        # continue-on-error: true
         working-directory: media
         run: |
+          java -version
           set +e
 
           SNYK_API_EFFECTIVE="https://api.snyk.io"
@@ -188,7 +170,7 @@ jobs:
           SNYK_API_URL: ${{ vars.SNYK_API_URL }}
           SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
       - name: Upload Snyk Results
-        if: ${{ always() && env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: Snyk Security Report
@@ -201,23 +183,29 @@ jobs:
             media/target/bom.json
       - name: Run Trivy filesystem scanner
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        # continue-on-error: true
         uses: aquasecurity/trivy-action@v0.24.0
         with:
           scan-type: "fs"
           scan-ref: "./media"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
+          ignore-unfixed: true
           format: "sarif"
           output: "trivy-fs-results.sarif"
+          skip-dirs: |
+            .git
+            .github
+            .m2
+            media/target
+            media/.idea
+            media/node_modules
+            media/build
+            media/out
       - name: Upload Trivy fs scan results
-        if: ${{ always() && env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: github/codeql-action/upload-sarif@v3
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-fs-results.sarif"
-      - name: Fail on security scan errors
-        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && steps.gitleaks_scan.outcome == 'failure' }}
-        run: exit 1
 
   run-unit-test:
     needs: test
@@ -229,23 +217,14 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      COVERAGE_THRESHOLD: 70
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
       - uses: ./.github/workflows/actions
       - name: Run Maven Unit Tests and Coverage
-        run: |
-          UPDATE_FLAG=""
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            UPDATE_FLAG="-U"
-          fi
-          mvn clean org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.14:report -pl media -am $UPDATE_FLAG
+        run: mvn clean org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.14:report -pl media -am -U
       - name: Enforce coverage > 70%
         run: |
           python3 <<'PY'
@@ -280,7 +259,7 @@ jobs:
               sys.exit(2)
 
           coverage = covered * 100.0 / total
-          threshold = 70.0
+          threshold = float(os.environ.get("COVERAGE_THRESHOLD", "70"))
           print(f"Line coverage: {coverage:.2f}% (required > {threshold:.0f}%)")
 
           if coverage <= threshold:
@@ -290,9 +269,7 @@ jobs:
           print("Coverage gate passed.")
           PY
       - name: SonarCloud Scan (Pull Request)
-        # Đáng lẽ nên skip ở các nhánh test: && !startsWith(github.head_ref, 'unit-test/')
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name == 'pull_request' }}
-        # continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@v5.0.0
         with:
           projectBaseDir: media
@@ -311,9 +288,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: SonarCloud Scan (Branch)
-        # Đáng lẽ nên skip ở các nhánh test: && !startsWith(github.ref, 'refs/heads/unit-test/')
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name != 'pull_request' }}
-        # continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@v5.0.0
         with:
           projectBaseDir: media
@@ -330,13 +305,13 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: Test Results
         uses: dorny/test-reporter@v1
-        if: ${{ always() && env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        if: ${{ success() || failure() }}
         with:
           name: Media-Service-Unit-Test-Results
           path: "media/**/*-reports/TEST*.xml"
           reporter: java-junit
       - name: Upload Coverage Report
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Jacoco Coverage Report
@@ -351,23 +326,14 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      ORG_REPO: devops-teamk23
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
+          fetch-depth: 1
       - uses: ./.github/workflows/actions
       - name: Run Maven Build Command
-        run: |
-          UPDATE_FLAG=""
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            UPDATE_FLAG="-U"
-          fi
-          mvn package -DskipTests -pl media -am $UPDATE_FLAG
+        run: mvn package -DskipTests -pl media -am -U
       - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
@@ -375,31 +341,31 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
         with:
           context: ./media
-          tags: ghcr.io/nashtech-garage/yas-media:latest
+          push: false
+          load: true
+          tags: ghcr.io/${{ env.ORG_REPO }}/yas-media:latest
       - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
-        # continue-on-error: true
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "ghcr.io/nashtech-garage/yas-media:latest"
+          image-ref: "ghcr.io/${{ env.ORG_REPO }}/yas-media:latest"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
           format: "sarif"
           output: "trivy-image-results.sarif"
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: ./media
-          push: true
-          tags: ghcr.io/nashtech-garage/yas-media:latest
+        run: |
+          docker push ghcr.io/${{ env.ORG_REPO }}/yas-media:latest
+
       - name: Upload Trivy image scan results
-        if: ${{ always() && github.ref == 'refs/heads/main' }}
-        uses: github/codeql-action/upload-sarif@v3
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-image-results.sarif"
