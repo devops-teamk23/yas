@@ -2,18 +2,18 @@ name: release charts ci
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "unit-test/charts"]
     paths:
       - "k8s/charts/**"
       - ".github/workflows/charts-ci.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - "gitleaks.toml"
   pull_request:
-    branches: ["**"]
+    branches: ["main"]
     paths:
       - "k8s/charts/**"
       - ".github/workflows/charts-ci.yaml"
-      - ".github/workflows/gitleak/action.yaml"
+      # - ".github/workflows/gitleak/action.yaml"
       - "gitleaks.toml"
   workflow_dispatch:
 
@@ -43,19 +43,11 @@ jobs:
       - name: Run Gitleaks Scan
         id: gitleaks_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        continue-on-error: true
-        run: |
-          docker pull zricethezav/gitleaks:v8.18.4
-          docker run --rm \
-            -v ${{ github.workspace }}:/work \
-            -w /work \
-            zricethezav/gitleaks:v8.18.4 detect \
-            --source="k8s/charts" \
-            --config="/work/gitleaks.toml" \
-            --verbose \
-            --no-git \
-            --report-format=json \
-            --report-path=charts-gitleaks-report.json
+        uses: ./.github/workflows/gitleak
+        with:
+          version: "v8.18.4"
+          path: "k8s/charts"
+          report-path: "charts-gitleaks-report.json"
 
       - name: Upload Gitleaks Result
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
@@ -297,11 +289,17 @@ jobs:
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
 
+          ignore-unfixed: true
       - name: Install Helm
         uses: azure/setup-helm@v3.5
+          skip-dirs: |
+            .git
+            .github
+            .m2
+            k8s/charts/**/charts
 
       - name: Add Helm repositories
-        run: |
+        uses: github/codeql-action/upload-sarif@v4
           helm repo add stakater https://stakater.github.io/stakater-charts
           helm repo update
 
