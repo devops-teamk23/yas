@@ -14,7 +14,7 @@ on:
     paths:
       - "backoffice-bff/**"
       - ".github/workflows/actions/action.yaml"
-      - ".github/workflows/gitleak/action.yaml"
+      #- ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/backoffice-bff-ci.yaml"
       - "pom.xml"
   workflow_dispatch:
