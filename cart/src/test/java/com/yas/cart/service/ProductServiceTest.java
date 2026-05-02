@@ -2,6 +2,11 @@ package com.yas.cart.service;
 
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 import com.yas.commonlibrary.config.ServiceUrlConfig;
@@ -35,6 +40,52 @@ class ProductServiceTest {
         productService = new ProductService(restClient, serviceUrlConfig);
         requestHeadersUriSpec = Mockito.mock(RestClient.RequestHeadersUriSpec.class);
         responseSpec = Mockito.mock(RestClient.ResponseSpec.class);
+    }
+
+    @Test
+    void getProductById_WhenProductExists_ReturnFirstProduct() {
+        ProductService serviceSpy = Mockito.spy(productService);
+        ProductThumbnailVm product = getProductThumbnailVms().getFirst();
+
+        doReturn(List.of(product)).when(serviceSpy).getProducts(List.of(1L));
+
+        ProductThumbnailVm result = serviceSpy.getProductById(1L);
+
+        assertThat(result).isNotNull();
+        assertThat(result.id()).isEqualTo(1L);
+    }
+
+    @Test
+    void getProductById_WhenNoProduct_ReturnNull() {
+        ProductService serviceSpy = Mockito.spy(productService);
+
+        doReturn(List.of()).when(serviceSpy).getProducts(List.of(99L));
+
+        ProductThumbnailVm result = serviceSpy.getProductById(99L);
+
+        assertNull(result);
+    }
+
+    @Test
+    void existsById_ShouldReflectProductLookupResult() {
+        ProductService serviceSpy = Mockito.spy(productService);
+        ProductThumbnailVm product = getProductThumbnailVms().getFirst();
+
+        doReturn(List.of(product)).when(serviceSpy).getProducts(List.of(1L));
+        doReturn(List.of()).when(serviceSpy).getProducts(List.of(99L));
+
+        assertTrue(serviceSpy.existsById(1L));
+        assertFalse(serviceSpy.existsById(99L));
+    }
+
+    @Test
+    void handleProductThumbnailFallback_ShouldRethrowOriginalException() {
+        RuntimeException exception = new RuntimeException("fallback error");
+
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+            () -> productService.handleProductThumbnailFallback(exception));
+
+        assertThat(thrown).isSameAs(exception);
     }
 
     @Test
