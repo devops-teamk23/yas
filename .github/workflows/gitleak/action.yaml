@@ -5,6 +5,14 @@ inputs:
     description: "Version of Gitleaks"
     required: true
     default: "v8.18.4"
+  path:
+    description: "Path to scan (relative to repo root)"
+    required: false
+    default: "."
+  report-path:
+    description: "Path to save the Gitleaks report (relative to repo root)"
+    required: true
+    default: "gitleaks-report.json"
 
 runs:
   using: "composite"
@@ -12,10 +20,20 @@ runs:
     - name: Checkout
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+        fetch-depth: 0
 
     - name: Run Gitleaks Scan
       shell: bash
       run: |
+        echo "Scanning path: ${{ inputs.path }}"
         docker pull zricethezav/gitleaks:${{ inputs.version }}
-        docker run --rm -v ${{ github.workspace }}:/work -w /work zricethezav/gitleaks:${{ inputs.version }} detect --source="." --config="/work/gitleaks.toml" --verbose --no-git
+        docker run --rm \
+          -v ${{ github.workspace }}:/work \
+          -w /work \
+          zricethezav/gitleaks:${{ inputs.version }} detect \
+          --source="${{ inputs.path }}" \
+          --config="/work/gitleaks.toml" \
+          --report-path="${{ inputs.report-path }}" \
+          --verbose \
+          --report-format=json \
+          --no-git
