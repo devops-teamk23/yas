@@ -96,6 +96,13 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${jacoco-maven-plugin.version}</version>
+                <configuration>
+                    <excludes>
+                        <exclude>com/yas/**/*Application.class</exclude>
+                        <exclude>com/yas/**/exception/**</exclude>
+                        <exclude>com/yas/**/constants/**</exclude>
+                    </excludes>
+                </configuration>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
