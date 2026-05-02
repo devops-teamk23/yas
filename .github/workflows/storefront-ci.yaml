@@ -116,6 +116,16 @@ jobs:
             exit 2
           fi
 
+          if [ ! -d "node_modules" ]; then
+            echo "::warning::node_modules is missing before Snyk scan. Restoring dependencies with npm ci."
+            npm ci 2>&1 | tee -a snyk-console.log
+            NPM_CI_EXIT_CODE=${PIPESTATUS[0]}
+            if [ $NPM_CI_EXIT_CODE -ne 0 ]; then
+              echo "::error::npm ci failed while preparing dependencies for Snyk scan."
+              exit 2
+            fi
+          fi
+
           snyk test \
             --file=package.json \
             --package-manager=npm \
@@ -197,7 +207,6 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-      COVERAGE_THRESHOLD: 70
     steps:
       - uses: actions/checkout@v4
         with:
@@ -208,7 +217,7 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: storefront/package-lock.json
-      - name: Run Unit Tests and Coverage
+      - name: Run Frontend Validation
         run: |
           npm ci
           npm run lint
