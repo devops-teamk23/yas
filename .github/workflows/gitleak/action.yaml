@@ -9,6 +9,10 @@ inputs:
     description: "Path to scan (relative to repo root)"
     required: false
     default: "."
+  report-path:
+    description: "Path to save the Gitleaks report (relative to repo root)"
+    required: true
+    default: "gitleaks-report.json"
 
 runs:
   using: "composite"
@@ -29,5 +33,8 @@ runs:
           zricethezav/gitleaks:${{ inputs.version }} detect \
           --source="${{ inputs.path }}" \
           --config="/work/gitleaks.toml" \
+          --report-path="${{ inputs.report-path }}" \
           --verbose \
+          --report-format=json \
           --no-git
+
