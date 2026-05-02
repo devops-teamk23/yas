@@ -14,7 +14,7 @@ on:
     paths:
       - "sampledata/**"
       - ".github/workflows/actions/action.yaml"
-      - ".github/workflows/gitleak/action.yaml"
+      # - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/sampledata-ci.yaml"
       - "pom.xml"
   workflow_dispatch:
@@ -328,6 +328,7 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      ORG_REPO: devops-teamk23
     steps:
       - uses: actions/checkout@v4
         with:
@@ -350,12 +351,12 @@ jobs:
           context: ./sampledata
           push: false
           load: true
-          tags: ghcr.io/nashtech-garage/yas-sampledata:latest
+          tags: ghcr.io/${{ env.ORG_REPO }}/yas-sampledata:latest
       - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "ghcr.io/nashtech-garage/yas-sampledata:latest"
+          image-ref: "ghcr.io/${{ env.ORG_REPO }}/yas-sampledata:latest"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
           format: "sarif"
@@ -363,7 +364,7 @@ jobs:
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          docker push ghcr.io/nashtech-garage/yas-sampledata:latest
+          docker push ghcr.io/${{ env.ORG_REPO }}/yas-sampledata:latest
 
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
