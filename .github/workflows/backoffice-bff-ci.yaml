@@ -66,6 +66,13 @@ jobs:
       - name: Setup Snyk CLI
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: snyk/actions/setup@master
+      - name: Set up JDK 17 for Snyk
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: "maven"
       - name: Run Snyk Security Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         working-directory: backoffice-bff
