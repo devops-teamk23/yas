@@ -1,5 +1,6 @@
 package com.yas.search.viewmodel;
 
+import com.yas.search.model.Product;
 import com.yas.search.viewmodel.error.ErrorVm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -19,6 +20,41 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Search ViewModels Tests")
 class SearchViewModelsTest {
+
+    @Test
+    @DisplayName("Should map product model into view models")
+    void shouldMapProductModelIntoViewModels() {
+        ZonedDateTime createdOn = ZonedDateTime.now();
+        Product product = Product.builder()
+                .id(123L)
+                .name("Test Product")
+                .slug("test-product")
+                .thumbnailMediaId(456L)
+                .price(99.99)
+                .isAllowedToOrder(true)
+                .isPublished(true)
+                .isFeatured(false)
+                .isVisibleIndividually(true)
+                .createdOn(createdOn)
+                .build();
+
+        ProductGetVm productGetVm = ProductGetVm.fromModel(product);
+        ProductNameGetVm productNameGetVm = ProductNameGetVm.fromModel(product);
+
+        assertAll(
+                () -> assertEquals(product.getId(), productGetVm.id()),
+                () -> assertEquals(product.getName(), productGetVm.name()),
+                () -> assertEquals(product.getSlug(), productGetVm.slug()),
+                () -> assertEquals(product.getThumbnailMediaId(), productGetVm.thumbnailId()),
+                () -> assertEquals(product.getPrice(), productGetVm.price()),
+                () -> assertEquals(product.getIsAllowedToOrder(), productGetVm.isAllowedToOrder()),
+                () -> assertEquals(product.getIsPublished(), productGetVm.isPublished()),
+                () -> assertEquals(product.getIsFeatured(), productGetVm.isFeatured()),
+                () -> assertEquals(product.getIsVisibleIndividually(), productGetVm.isVisibleIndividually()),
+                () -> assertEquals(product.getCreatedOn(), productGetVm.createdOn()),
+                () -> assertEquals(product.getName(), productNameGetVm.name())
+        );
+    }
 
     @Nested
     @DisplayName("ProductGetVm Record Tests")
