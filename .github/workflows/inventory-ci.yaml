@@ -2,7 +2,7 @@ name: inventory service ci
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "unit-test/inventory"]
     paths:
       - "inventory/**"
       - ".github/workflows/actions/action.yaml"
@@ -11,11 +11,11 @@ on:
       - "gitleaks.toml"
       - "pom.xml"
   pull_request:
-    branches: ["**"]
+    branches: ["main"]
     paths:
       - "inventory/**"
       - ".github/workflows/actions/action.yaml"
-      - ".github/workflows/gitleak/action.yaml"
+      # - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/inventory-ci.yaml"
       - "gitleaks.toml"
       - "pom.xml"
@@ -29,6 +29,7 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      COVERAGE_THRESHOLD: 70
       RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - name: Checkout
@@ -44,19 +45,11 @@ jobs:
       - name: Run Gitleaks Scan
         id: gitleaks_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        continue-on-error: true
-        run: |
-          docker pull zricethezav/gitleaks:v8.18.4
-          docker run --rm \
-            -v ${{ github.workspace }}:/work \
-            -w /work \
-            zricethezav/gitleaks:v8.18.4 detect \
-            --source="inventory" \
-            --config="/work/gitleaks.toml" \
-            --verbose \
-            --no-git \
-            --report-format=json \
-            --report-path=inventory-gitleaks-report.json
+        uses: ./.github/workflows/gitleak
+        with:
+          version: "v8.18.4"
+          path: "inventory"
+          report-path: "inventory-gitleaks-report.json"
 
       - name: Upload Gitleaks Result
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
@@ -82,6 +75,12 @@ jobs:
       - name: Setup Snyk CLI
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: snyk/actions/setup@master
+      - name: Setup Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: "maven"
 
       - name: Run Snyk Security Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
@@ -91,6 +90,7 @@ jobs:
           SNYK_API_URL: ${{ vars.SNYK_API_URL }}
           SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
         run: |
+          java -version
           set +e
 
           SNYK_API_EFFECTIVE="https://api.snyk.io"
@@ -195,8 +195,18 @@ jobs:
           scan-ref: "./inventory"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
+          ignore-unfixed: true
           format: "sarif"
           output: "trivy-fs-results.sarif"
+          skip-dirs: |
+            .git
+            .github
+            .m2
+            inventory/target
+            inventory/.idea
+            inventory/node_modules
+            inventory/build
+            inventory/out
 
       - name: Upload Trivy fs scan results
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
@@ -214,11 +224,12 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      ORG_REPO: devops-teamk23
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - uses: ./.github/workflows/actions
 
@@ -259,7 +270,7 @@ jobs:
               sys.exit(2)
 
           coverage = covered * 100.0 / total
-          threshold = 70.0
+          threshold = float(os.environ.get("COVERAGE_THRESHOLD", "70"))
           print(f"Line coverage: {coverage:.2f}% (required > {threshold:.0f}%)")
 
           if coverage <= threshold:
@@ -354,13 +365,15 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./inventory
-          tags: ghcr.io/nashtech-garage/yas-inventory:latest
+          push: false
+          load: true
+          tags: ghcr.io/${{ env.ORG_REPO }}/yas-inventory:latest
 
       - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "ghcr.io/nashtech-garage/yas-inventory:latest"
+          image-ref: "ghcr.io/${{ env.ORG_REPO }}/yas-inventory:latest"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
           format: "sarif"
@@ -368,11 +381,8 @@ jobs:
 
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: ./inventory
-          push: true
-          tags: ghcr.io/nashtech-garage/yas-inventory:latest
+        run: |
+          docker push ghcr.io/${{ env.ORG_REPO }}/yas-inventory:latest
 
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
