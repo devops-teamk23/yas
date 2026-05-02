@@ -2,19 +2,21 @@ name: tax service ci
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "unit-test/tax"]
     paths:
       - "tax/**"
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/tax-ci.yaml"
+      - "pom.xml"
   pull_request:
-    branches: ["**"]
+    branches: ["main"]
     paths:
       - "tax/**"
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/tax-ci.yaml"
+      - "pom.xml"
   workflow_dispatch:
 
 jobs:
@@ -22,47 +24,26 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: write
-      pull-requests: write
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-      CAN_PUBLISH_CHECKS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-      RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/unit-test/tax' }}
-      RUN_SONAR_SCAN: ${{ github.ref != 'refs/heads/unit-test/tax' && github.head_ref != 'unit-test/tax' }}
+      RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
+          fetch-depth: 0
       - uses: ./.github/workflows/actions
       - name: Build and Install Dependencies
-        run: |
-          UPDATE_FLAG=""
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            UPDATE_FLAG="-U"
-          fi
-          mvn clean install -DskipTests -pl tax -am $UPDATE_FLAG
+        run: mvn clean install -DskipTests -pl tax -am -U
+
       - name: Run Gitleaks Scan
         id: gitleaks_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        continue-on-error: true
-        run: |
-          docker pull zricethezav/gitleaks:v8.18.4
-          docker run --rm \
-            -v ${{ github.workspace }}:/work \
-            -w /work \
-            zricethezav/gitleaks:v8.18.4 detect \
-            --source="tax" \
-            --config="/work/gitleaks.toml" \
-            --verbose \
-            --no-git \
-            --report-format=json \
-            --report-path=tax-gitleaks-report.json
+        uses: ./.github/workflows/gitleak
+        with:
+          version: "v8.18.4"
+          path: "tax"
+          report-path: "tax-gitleaks-report.json"
       - name: Upload Gitleaks Result
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
         uses: actions/upload-artifact@v4
@@ -70,35 +51,32 @@ jobs:
           name: Tax Gitleaks Report
           path: tax-gitleaks-report.json
           if-no-files-found: warn
-      - name: Run Maven Checkstyle
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        run: mvn checkstyle:checkstyle -pl tax -am -Dcheckstyle.output.file=tax/target/tax-checkstyle-result.xml
-      - name: Upload Checkstyle Result
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' && env.CAN_PUBLISH_CHECKS == 'true' }}
-        uses: jwgmeligmeyling/checkstyle-github-action@master
-        with:
-          path: "tax/target/tax-checkstyle-result.xml"
       - name: Check Snyk Token Availability
         id: snyk_token_check
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           if [ -z "$SNYK_TOKEN" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::SNYK_TOKEN is missing for this workflow context, skipping Snyk scan." | tee snyk-auth.log
+            echo "::warning::SNYK_TOKEN is missing for this workflow context, skipping Snyk scan."
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Setup Snyk CLI
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: snyk/actions/setup@master
+      - name: Setup Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: "maven"
       - name: Run Snyk Security Scan
-        id: snyk_scan
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
-        continue-on-error: true
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         working-directory: tax
         run: |
+          java -version
           set +e
 
           SNYK_API_EFFECTIVE="https://api.snyk.io"
@@ -108,11 +86,7 @@ jobs:
             echo "Using custom Snyk API endpoint from SNYK_API_URL."
           fi
 
-          echo "Snyk CLI version:" | tee snyk-auth.log
-          snyk --version 2>&1 | tee -a snyk-auth.log
-          echo "Snyk API endpoint: $SNYK_API_EFFECTIVE" | tee -a snyk-auth.log
-
-          snyk auth "$SNYK_TOKEN" 2>&1 | tee -a snyk-auth.log
+          snyk auth "$SNYK_TOKEN" 2>&1 | tee snyk-auth.log
           AUTH_EXIT_CODE=${PIPESTATUS[0]}
           if [ $AUTH_EXIT_CODE -ne 0 ]; then
             echo "::error::snyk auth failed. Verify SNYK_TOKEN validity."
@@ -121,33 +95,26 @@ jobs:
 
           snyk whoami --json 2>&1 | tee snyk-whoami.json
           WHOAMI_EXIT_CODE=${PIPESTATUS[0]}
-          cat snyk-whoami.json >> snyk-auth.log
-          if [ $WHOAMI_EXIT_CODE -ne 0 ] || grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-whoami.json; then
+          if [ $WHOAMI_EXIT_CODE -ne 0 ]; then
             echo "::error::snyk whoami failed. Verify SNYK_TOKEN permission and SNYK_API_URL region endpoint."
             exit 2
           fi
 
           HTTP_CODE=$(curl -sS -o snyk-me.json -w "%{http_code}" -H "Authorization: token $SNYK_TOKEN" "$SNYK_API_EFFECTIVE/v1/user/me")
-          echo "Snyk /v1/user/me HTTP status: $HTTP_CODE" | tee -a snyk-auth.log
-          cat snyk-me.json >> snyk-auth.log
           if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
             echo "::error::Snyk API access denied ($HTTP_CODE). Check token scope and org access in this tenant."
             exit 2
           fi
 
-          snyk orgs list --json > snyk-orgs.json 2>>snyk-auth.log || true
-
-          EFFECTIVE_ORG_ID="$SNYK_ORG_ID"
-          if [ -z "$EFFECTIVE_ORG_ID" ] && [ -s snyk-orgs.json ]; then
-            EFFECTIVE_ORG_ID=$(python3 -c "import json; d=json.load(open('snyk-orgs.json','r',encoding='utf-8')); print((d[0].get('id') if isinstance(d,list) and d else ''))" 2>/dev/null || true)
+          ORG_ARG=()
+          if [ -n "$SNYK_ORG_ID" ]; then
+            ORG_ARG=("--org=$SNYK_ORG_ID")
           fi
 
-          ORG_ARG=()
-          if [ -n "$EFFECTIVE_ORG_ID" ]; then
-            ORG_ARG=("--org=$EFFECTIVE_ORG_ID")
-            echo "Using Snyk org: $EFFECTIVE_ORG_ID" | tee -a snyk-auth.log
-          else
-            echo "::warning::No effective Snyk org found. Scan will use token default org context." | tee -a snyk-auth.log
+          echo "Snyk scan working directory: $(pwd)"
+          if [ ! -f "pom.xml" ]; then
+            echo "::error::pom.xml is missing in tax."
+            exit 2
           fi
 
           snyk test \
@@ -160,23 +127,23 @@ jobs:
           SNYK_EXIT_CODE=${PIPESTATUS[0]}
 
           if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Cannot build Maven dependency tree|SNYK-OS-MAVEN-0018|422 Unprocessable Entity|Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)" snyk-console.log; then
-            echo "::warning::Maven dependency resolution failed inside Snyk CLI. Falling back to SBOM scan."
+            echo "::warning::Snyk Maven scan hit known dependency resolution/runtime issue. Falling back to SBOM scan."
             mvn -DskipTests -Dcyclonedx.outputFormat=json org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom \
               2>&1 | tee -a snyk-console.log
             SBOM_EXIT_CODE=${PIPESTATUS[0]}
 
-            if [ $SBOM_EXIT_CODE -eq 0 ] && [ -s target/bom.json ]; then
-              snyk sbom test \
-                --file=target/bom.json \
-                --severity-threshold=high \
-                --json-file-output=snyk-results.json \
-                "${ORG_ARG[@]}" \
-                2>&1 | tee -a snyk-console.log
-              SNYK_EXIT_CODE=${PIPESTATUS[0]}
-            else
-              echo "::warning::Could not generate CycloneDX SBOM for Snyk fallback. Keeping Snyk logs as artifact."
-              exit 0
+            if [ $SBOM_EXIT_CODE -ne 0 ] || [ ! -f "target/bom.json" ]; then
+              echo "::error::Failed to generate CycloneDX SBOM for fallback Snyk scan."
+              exit 2
             fi
+
+            snyk sbom test \
+              --file=target/bom.json \
+              --severity-threshold=high \
+              --json-file-output=snyk-results.json \
+              "${ORG_ARG[@]}" \
+              2>&1 | tee -a snyk-console.log
+            SNYK_EXIT_CODE=${PIPESTATUS[0]}
           fi
 
           if grep -Eq "403 Forbidden|401 Unauthorized|Authentication error|SNYK-0005" snyk-console.log; then
@@ -188,22 +155,23 @@ jobs:
             exit 2
           fi
 
-          if [ $SNYK_EXIT_CODE -eq 2 ]; then
-            echo "::warning::Snyk scan execution failed with a non-vulnerability error. Review snyk-console.log artifact for root cause."
+          if [ $SNYK_EXIT_CODE -eq 1 ]; then
+            echo "::warning::Snyk found vulnerabilities at configured severity threshold. CI continues by policy."
             exit 0
           fi
 
-          if [ $SNYK_EXIT_CODE -eq 1 ]; then
-            echo "::warning::Snyk found vulnerabilities at configured severity threshold. Report uploaded for remediation tracking."
-            exit 0
+          if [ $SNYK_EXIT_CODE -eq 2 ]; then
+            echo "::error::Snyk scan execution failed (non-vulnerability error). Review snyk-console.log artifact for root cause."
+            exit 2
           fi
+
           exit $SNYK_EXIT_CODE
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
           SNYK_API_URL: ${{ vars.SNYK_API_URL }}
           SNYK_ORG_ID: ${{ vars.SNYK_ORG_ID }}
       - name: Upload Snyk Results
-        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: Snyk Security Report
@@ -212,61 +180,34 @@ jobs:
             tax/snyk-auth.log
             tax/snyk-whoami.json
             tax/snyk-me.json
-            tax/snyk-orgs.json
             tax/snyk-console.log
             tax/target/bom.json
-          if-no-files-found: warn
-      - name: Analyze with sonar cloud
-        id: sonar_scan
-        if: ${{ env.RUN_SECURITY_SCANS == 'true' && env.RUN_SONAR_SCAN == 'true' }}
-        continue-on-error: true
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set +e
-          if [ -z "$SONAR_TOKEN" ]; then
-            echo "::warning::SONAR_TOKEN is missing for this workflow context, skipping SonarCloud analysis."
-            exit 0
-          fi
+      - name: Run Trivy filesystem scanner
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          scan-type: "fs"
+          scan-ref: "./tax"
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
+          ignore-unfixed: true
+          format: "sarif"
+          output: "trivy-fs-results.sarif"
 
-          SONAR_CMD="org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar"
-
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            PR_KEY="${{ github.event.pull_request.number }}"
-            PR_BRANCH="${{ github.event.pull_request.head.ref }}"
-            PR_BASE="${{ github.event.pull_request.base.ref }}"
-
-            mvn "$SONAR_CMD" -f tax \
-              -Dsonar.pullrequest.key="$PR_KEY" \
-              -Dsonar.pullrequest.branch="$PR_BRANCH" \
-              -Dsonar.pullrequest.base="$PR_BASE" \
-              2>&1 | tee sonar.log
-            SONAR_EXIT_CODE=$?
-
-            if [ $SONAR_EXIT_CODE -ne 0 ]; then
-              if grep -Eqi "Could not find the pullrequest with key|pullrequest with key|Error 404 on https://api\.sonarcloud\.io/analysis/analyses|Detected project binding: BOUND" sonar.log; then
-                echo "::warning::SonarCloud ALM binding/platform issue for this PR. Skipping Sonar failure to avoid blocking CI."
-                exit 0
-              fi
-            fi
-
-            exit $SONAR_EXIT_CODE
-          fi
-
-          mvn "$SONAR_CMD" -f tax -Dsonar.branch.name="${{ github.ref_name }}" \
-            2>&1 | tee sonar.log
-          SONAR_EXIT_CODE=$?
-
-          if [ $SONAR_EXIT_CODE -ne 0 ] && grep -Eq "Error 404 on https://api\.sonarcloud\.io/analysis/analyses" sonar.log; then
-            echo "::warning::SonarCloud analysis API returned 404. Skipping Sonar failure for platform-side issue."
-            exit 0
-          fi
-
-          exit $SONAR_EXIT_CODE
-      - name: Fail on security scan errors
-        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && steps.gitleaks_scan.outcome == 'failure' }}
-        run: exit 1
+          skip-dirs: |
+            .git
+            .github
+            .m2
+            tax/target
+            tax/.idea
+            tax/node_modules
+            tax/build
+            tax/out
+      - name: Upload Trivy fs scan results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: "trivy-fs-results.sarif"
 
   run-unit-test:
     needs: test
@@ -278,76 +219,101 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-      CAN_PUBLISH_CHECKS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      COVERAGE_THRESHOLD: 70
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
       - uses: ./.github/workflows/actions
       - name: Run Maven Unit Tests and Coverage
+        run: mvn clean org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.14:report -pl tax -am -U
+      - name: Enforce coverage > 70%
         run: |
-          UPDATE_FLAG=""
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            UPDATE_FLAG="-U"
-          fi
-          mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report -pl tax -am $UPDATE_FLAG
-
-      - name: Enforce JaCoCo Coverage Threshold
-        run: |
-          python3 - <<'PY'
+          python3 <<'PY'
+          import os
           import sys
           import xml.etree.ElementTree as ET
 
-          threshold = 70.0
           report_path = "tax/target/site/jacoco/jacoco.xml"
-          root = ET.parse(report_path).getroot()
-          counter = next(
-              (item for item in root.findall("counter") if item.get("type") == "LINE"),
-              None,
-          )
+          if not os.path.exists(report_path):
+              print(f"::error::Coverage report not found at {report_path}.")
+              sys.exit(2)
 
-          if counter is None:
-              print(f"::error::No LINE coverage counter found in {report_path}")
+          tree = ET.parse(report_path)
+          root = tree.getroot()
+
+          line_counter = None
+          for counter in root.findall("counter"):
+              if counter.get("type") == "LINE":
+                  line_counter = counter
+                  break
+
+          if line_counter is None:
+              print("::error::Cannot find LINE counter in JaCoCo report.")
+              sys.exit(2)
+
+          covered = int(line_counter.get("covered", "0"))
+          missed = int(line_counter.get("missed", "0"))
+          total = covered + missed
+
+          if total == 0:
+              print("::error::No executable lines found in JaCoCo report.")
+              sys.exit(2)
+
+          coverage = covered * 100.0 / total
+          threshold = float(os.environ.get("COVERAGE_THRESHOLD", "70"))
+          print(f"Line coverage: {coverage:.2f}% (required > {threshold:.0f}%)")
+
+          if coverage <= threshold:
+              print(f"::error::Coverage gate failed: line coverage {coverage:.2f}% must be greater than {threshold:.0f}%.")
               sys.exit(1)
 
-          missed = int(counter.get("missed", "0"))
-          covered = int(counter.get("covered", "0"))
-          total = missed + covered
-          coverage = 0.0 if total == 0 else covered * 100 / total
-
-          print(f"Line coverage: {coverage:.2f}% ({covered}/{total} lines covered)")
-          if coverage < threshold:
-              print(f"::error::Line coverage {coverage:.2f}% is below required {threshold:.2f}%")
-              sys.exit(1)
+          print("Coverage gate passed.")
           PY
-
+      - name: SonarCloud Scan (Pull Request)
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name == 'pull_request' }}
+        uses: SonarSource/sonarqube-scan-action@v5.0.0
+        with:
+          projectBaseDir: tax
+          args: >
+            -Dsonar.projectKey=devops-teamk23_yas
+            -Dsonar.organization=devops-teamk23
+            -Dsonar.sources=src/main/java
+            -Dsonar.tests=src/test/java
+            -Dsonar.test.inclusions=src/test/java/**/*.java
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+            -Dsonar.java.binaries=target/classes
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
+            -Dsonar.pullrequest.branch=${{ github.event.pull_request.head.ref }}
+            -Dsonar.pullrequest.base=${{ github.event.pull_request.base.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: SonarCloud Scan (Branch)
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name != 'pull_request' }}
+        uses: SonarSource/sonarqube-scan-action@v5.0.0
+        with:
+          projectBaseDir: tax
+          args: >
+            -Dsonar.projectKey=devops-teamk23_yas
+            -Dsonar.organization=devops-teamk23
+            -Dsonar.sources=src/main/java
+            -Dsonar.tests=src/test/java
+            -Dsonar.test.inclusions=src/test/java/**/*.java
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+            -Dsonar.java.binaries=target/classes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: Test Results
         uses: dorny/test-reporter@v1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && env.CAN_PUBLISH_CHECKS == 'true' && (success() || failure()) }}
+        if: ${{ success() || failure() }}
         with:
           name: Tax-Service-Unit-Test-Results
-          path: |
-            tax/target/surefire-reports/TEST-*.xml
-            tax/target/failsafe-reports/TEST-*.xml
+          path: "tax/**/*-reports/TEST*.xml"
           reporter: java-junit
-          fail-on-empty: false
-      - name: Add coverage report to PR
-        uses: madrapps/jacoco-report@v1.6.1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && env.CAN_PUBLISH_CHECKS == 'true' }}
-        with:
-          paths: ${{github.workspace}}/tax/target/site/jacoco/jacoco.xml
-          token: ${{secrets.GITHUB_TOKEN}}
-          min-coverage-overall: 80
-          min-coverage-changed-files: 60
-          title: "Tax Coverage Report"
-          update-comment: true
       - name: Upload Coverage Report
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Jacoco Coverage Report
@@ -365,20 +331,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
+          fetch-depth: 1
       - uses: ./.github/workflows/actions
       - name: Run Maven Build Command
-        run: |
-          UPDATE_FLAG=""
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            UPDATE_FLAG="-U"
-          fi
-          mvn package -DskipTests -pl tax -am $UPDATE_FLAG
+        run: mvn package -DskipTests -pl tax -am -U
       - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
@@ -386,10 +342,31 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push Docker images
+
+      - name: Build Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
         with:
           context: ./tax
-          push: true
+          push: false
+          load: true
           tags: ghcr.io/nashtech-garage/yas-tax:latest
+      - name: Run Trivy image scanner
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: "ghcr.io/nashtech-garage/yas-tax:latest"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          format: "sarif"
+          output: "trivy-image-results.sarif"
+      - name: Push Docker image
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          docker push ghcr.io/nashtech-garage/yas-tax:latest
+
+      - name: Upload Trivy image scan results
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: "trivy-image-results.sarif"
