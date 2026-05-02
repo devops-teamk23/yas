@@ -272,6 +272,21 @@ jobs:
           name: Charts Validation Summary
           path: charts-validation-summary.txt
 
+  build:
+    needs: run-unit-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fake build (charts)
+        run: |
+          echo "Charts do not require a build step."
+          echo "Build job completed."
+
   release-charts:
     needs: run-unit-test
     if: ${{ github.ref == 'refs/heads/main' }}
@@ -288,18 +303,11 @@ jobs:
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
-
-          ignore-unfixed: true
       - name: Install Helm
         uses: azure/setup-helm@v3.5
-          skip-dirs: |
-            .git
-            .github
-            .m2
-            k8s/charts/**/charts
 
       - name: Add Helm repositories
-        uses: github/codeql-action/upload-sarif@v4
+        run: |
           helm repo add stakater https://stakater.github.io/stakater-charts
           helm repo update
 
