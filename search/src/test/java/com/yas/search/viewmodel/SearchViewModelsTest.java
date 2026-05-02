@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for Search Service ViewModels.
  * Tests cover record instantiation, accessors, equality, hashCode, toString.
  */
+@SuppressWarnings("java:S2187")
 @DisplayName("Search ViewModels Tests")
 class SearchViewModelsTest {
 
