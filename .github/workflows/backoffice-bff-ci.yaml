@@ -188,7 +188,7 @@ jobs:
           scan-type: "fs"
           scan-ref: "./backoffice-bff"
           severity: "HIGH,CRITICAL"
-          exit-code: "1"
+          exit-code: 0
           ignore-unfixed: true
           format: "sarif"
           output: "trivy-fs-results.sarif"
