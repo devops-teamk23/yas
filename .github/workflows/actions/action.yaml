@@ -1,15 +1,39 @@
+name: "Gitleaks Scan Action"
+
+inputs:
+  version:
+    description: "Version of Gitleaks"
+    required: true
+    default: "v8.18.4"
+  path:
+    description: "Path to scan (relative to repo root)"
+    required: false
+    default: "."
+  report-path:
+    description: "Path to save the Gitleaks report (relative to repo root)"
+    required: true
+    default: "gitleaks-report.json"
+
 runs:
   using: "composite"
   steps:
-    - name: Set up JDK 25
-      uses: actions/setup-java@v4
+    - name: Checkout
+      uses: actions/checkout@v4
       with:
-        java-version: '25'
-        distribution: 'temurin'
-        cache: 'maven'
-    - name: Cache SonarCloud packages
-      uses: actions/cache@v4
-      with:
-        path: ~/.sonar/cache
-        key: ${{ runner.os }}-sonar
-        restore-keys: ${{ runner.os }}-sonar
+        fetch-depth: 0
+
+    - name: Run Gitleaks Scan
+      shell: bash
+      run: |
+        echo "Scanning path: ${{ inputs.path }}"
+        docker pull zricethezav/gitleaks:${{ inputs.version }}
+        docker run --rm \
+          -v ${{ github.workspace }}:/work \
+          -w /work \
+          zricethezav/gitleaks:${{ inputs.version }} detect \
+          --source="${{ inputs.path }}" \
+          --config="/work/gitleaks.toml" \
+          --report-path="${{ inputs.report-path }}" \
+          --verbose \
+          --report-format=json \
+          --no-git
