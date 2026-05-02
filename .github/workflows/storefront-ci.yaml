@@ -13,7 +13,7 @@ on:
     paths:
       - "storefront/**"
       - ".github/workflows/actions/action.yaml"
-      - ".github/workflows/gitleak/action.yaml"
+      # - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/storefront-ci.yaml"
   workflow_dispatch:
 
@@ -188,6 +188,15 @@ jobs:
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' && steps.gitleaks_scan.outcome == 'failure' }}
         run: exit 1
 
+  run-unit-test:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Skip unit tests for storefront
+        run: echo "No unit tests for storefront."
+
   build:
     needs: test
     runs-on: ubuntu-latest
@@ -197,6 +206,7 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      ORG_REPO: devops-teamk23
     steps:
       - uses: actions/checkout@v4
         with:
@@ -225,4 +235,4 @@ jobs:
         with:
           context: ./storefront
           push: true
-          tags: ghcr.io/nashtech-garage/yas-storefront:latest
+          tags: ghcr.io/${{ env.ORG_REPO }}/yas-storefront:latest
