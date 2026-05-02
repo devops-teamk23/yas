@@ -8,12 +8,15 @@ import org.slf4j.helpers.MessageFormatter;
 
 public class MessagesUtils {
 
-    static ResourceBundle messageBundle = ResourceBundle.getBundle("messages.messages", Locale.getDefault());
+    private static final ResourceBundle MESSAGE_BUNDLE = ResourceBundle.getBundle("messages.messages", Locale.getDefault());
+
+    private MessagesUtils() {
+    }
 
     public static String getMessage(String errorCode, Object... var2) {
         String message;
         try {
-            message = messageBundle.getString(errorCode);
+            message = MESSAGE_BUNDLE.getString(errorCode);
         } catch (MissingResourceException ex) {
             // case message_code is not defined.
             message = errorCode;
