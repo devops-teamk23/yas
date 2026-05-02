@@ -9,10 +9,12 @@ import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
 /**
- * Base configuration class for setting up Kafka consumers with typed deserialization.
+ * Base configuration class for setting up Kafka consumers with typed
+ * deserialization.
  *
  * @param <V> The type of messages consumed.
  */
+@SuppressWarnings({ "deprecation", "removal" })
 public abstract class BaseKafkaListenerConfig<K, V> {
 
     private final Class<K> keyType;
@@ -26,18 +28,22 @@ public abstract class BaseKafkaListenerConfig<K, V> {
     }
 
     /**
-     * Abstract method to provide a custom instance of {@link ConcurrentKafkaListenerContainerFactory}.
+     * Abstract method to provide a custom instance of
+     * {@link ConcurrentKafkaListenerContainerFactory}.
      * (override method must be recognized as bean)
-     * In case, using default want, let's get the default from {@link #kafkaListenerContainerFactory()}
+     * In case, using default want, let's get the default from
+     * {@link #kafkaListenerContainerFactory()}
      *
-     * @return a configured instance of {@link ConcurrentKafkaListenerContainerFactory}.
+     * @return a configured instance of
+     *         {@link ConcurrentKafkaListenerContainerFactory}.
      */
     public abstract ConcurrentKafkaListenerContainerFactory<K, V> listenerContainerFactory();
 
     /**
      * Common instance type ConcurrentKafkaListenerContainerFactory.
      *
-     * @return concurrentKafkaListenerContainerFactory {@link ConcurrentKafkaListenerContainerFactory}.
+     * @return concurrentKafkaListenerContainerFactory
+     *         {@link ConcurrentKafkaListenerContainerFactory}.
      */
     public ConcurrentKafkaListenerContainerFactory<K, V> kafkaListenerContainerFactory() {
         var factory = new ConcurrentKafkaListenerContainerFactory<K, V>();
