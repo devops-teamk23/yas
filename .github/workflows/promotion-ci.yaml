@@ -13,7 +13,7 @@ on:
     paths:
       - "promotion/**"
       - ".github/workflows/actions/action.yaml"
-      - ".github/workflows/gitleak/action.yaml"
+      #- ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/promotion-ci.yaml"
   workflow_dispatch:
 
