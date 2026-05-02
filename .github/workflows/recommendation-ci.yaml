@@ -126,10 +126,11 @@ jobs:
             2>&1 | tee snyk-console.log
           SNYK_EXIT_CODE=${PIPESTATUS[0]}
 
-          if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)" snyk-console.log; then
+          if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Cannot build Maven dependency tree|SNYK-OS-MAVEN-0018|422 Unprocessable Entity|Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)" snyk-console.log; then
             echo "::warning::Snyk Maven scan hit known dependency resolution/runtime issue. Falling back to SBOM scan."
-            mvn -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom -DoutputName=bom
-            SBOM_EXIT_CODE=$?
+            mvn -DskipTests -Dcyclonedx.outputFormat=json org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom \
+              2>&1 | tee -a snyk-console.log
+            SBOM_EXIT_CODE=${PIPESTATUS[0]}
 
             if [ $SBOM_EXIT_CODE -ne 0 ] || [ ! -f "target/bom.json" ]; then
               echo "::error::Failed to generate CycloneDX SBOM for fallback Snyk scan."
