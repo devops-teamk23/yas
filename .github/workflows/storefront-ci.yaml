@@ -234,11 +234,17 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: SonarCloud Scan (Branch)
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && github.event_name != 'pull_request' }}
-        uses: SonarSource/sonarcloud-github-action@master
-        with:
-          projectBaseDir: storefront
+        working-directory: storefront
+        run: |
+          npm install -g sonarqube-scanner
+          sonar-scanner \
+            -Dsonar.projectBaseDir=. \
+            -Dsonar.projectKey=nashtech-garage_yas-storefront \
+            -Dsonar.organization=nashtech-garage \
+            -Dsonar.sources=. \
+            -Dsonar.branch.name=${{ github.ref_name }} \
+            -Dsonar.host.url=https://sonarcloud.io
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   build:
