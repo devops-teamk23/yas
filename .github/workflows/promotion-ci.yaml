@@ -2,14 +2,14 @@ name: promotion service ci
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "unit-test/promotion"]
     paths:
       - "promotion/**"
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/promotion-ci.yaml"
   pull_request:
-    branches: ["**"]
+    branches: ["main"]
     paths:
       - "promotion/**"
       - ".github/workflows/actions/action.yaml"
@@ -37,27 +37,15 @@ jobs:
           cache: 'maven'
       - uses: ./.github/workflows/actions
       - name: Build and Install Dependencies
-        run: |
-          UPDATE_FLAG=""
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            UPDATE_FLAG="-U"
-          fi
-          mvn clean install -DskipTests -pl promotion -am $UPDATE_FLAG
+        run: mvn clean install -DskipTests -pl promotion -am -U
       - name: Run Gitleaks Scan
         id: gitleaks_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        run: |
-          docker pull zricethezav/gitleaks:v8.18.4
-          docker run --rm \
-            -v ${{ github.workspace }}:/work \
-            -w /work \
-            zricethezav/gitleaks:v8.18.4 detect \
-            --source="promotion" \
-            --config="/work/gitleaks.toml" \
-            --verbose \
-            --no-git \
-            --report-format=json \
-            --report-path=promotion-gitleaks-report.json
+        uses: ./.github/workflows/gitleak
+        with:
+          version: "v8.18.4"
+          path: "promotion"
+          report-path: "promotion-gitleaks-report.json"
       - name: Upload Gitleaks Result
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
         uses: actions/upload-artifact@v4
@@ -200,6 +188,7 @@ jobs:
           scan-ref: "./promotion"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
+          ignore-unfixed: true
           format: "sarif"
           output: "trivy-fs-results.sarif"
       - name: Upload Trivy fs scan results
@@ -229,12 +218,7 @@ jobs:
           cache: 'maven'
       - uses: ./.github/workflows/actions
       - name: Run Maven Unit Tests and Coverage
-        run: |
-          UPDATE_FLAG=""
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            UPDATE_FLAG="-U"
-          fi
-          mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report -pl promotion -am $UPDATE_FLAG
+        run: mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report -pl promotion -am -U
       - name: Enforce JaCoCo Coverage Threshold
         run: |
           python3 - <<'PY'
@@ -338,6 +322,7 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      ORG_REPO: devops-teamk23
     steps:
       - uses: actions/checkout@v4
         with:
@@ -349,12 +334,7 @@ jobs:
           cache: 'maven'
       - uses: ./.github/workflows/actions
       - name: Run Maven Build Command
-        run: |
-          UPDATE_FLAG=""
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            UPDATE_FLAG="-U"
-          fi
-          mvn package -DskipTests -pl promotion -am $UPDATE_FLAG
+        run: mvn package -DskipTests -pl promotion -am -U
       - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
@@ -367,23 +347,21 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./promotion
-          tags: ghcr.io/nashtech-garage/yas-promotion:latest
+          push: false
+          load: true
+          tags: ghcr.io/${{ env.ORG_REPO }}/yas-promotion:latest
       - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "ghcr.io/nashtech-garage/yas-promotion:latest"
+          image-ref: "ghcr.io/${{ env.ORG_REPO }}/yas-promotion:latest"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
           format: "sarif"
           output: "trivy-image-results.sarif"
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: ./promotion
-          push: true
-          tags: ghcr.io/nashtech-garage/yas-promotion:latest
+        run: docker push ghcr.io/${{ env.ORG_REPO }}/yas-promotion:latest
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: github/codeql-action/upload-sarif@v3
