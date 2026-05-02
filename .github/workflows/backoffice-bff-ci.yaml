@@ -2,7 +2,7 @@ name: backoffice-bff service ci
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "unit-test/backoffice-bff"]
     paths:
       - "backoffice-bff/**"
       - ".github/workflows/actions/action.yaml"
@@ -10,7 +10,7 @@ on:
       - ".github/workflows/backoffice-bff-ci.yaml"
       - "pom.xml"
   pull_request:
-    branches: ["**"]
+    branches: ["main", "unit-test/backoffice-bff"]
     paths:
       - "backoffice-bff/**"
       - ".github/workflows/actions/action.yaml"
@@ -35,22 +35,15 @@ jobs:
       - uses: ./.github/workflows/actions
       - name: Build and Install Dependencies
         run: mvn clean install -DskipTests -pl backoffice-bff -am -U
+
       - name: Run Gitleaks Scan
         id: gitleaks_scan
         if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
-        continue-on-error: true
-        run: |
-          docker pull zricethezav/gitleaks:v8.18.4
-          docker run --rm \
-            -v ${{ github.workspace }}:/work \
-            -w /work \
-            zricethezav/gitleaks:v8.18.4 detect \
-            --source="backoffice-bff" \
-            --config="/work/gitleaks.toml" \
-            --verbose \
-            --no-git \
-            --report-format=json \
-            --report-path=backoffice-bff-gitleaks-report.json
+        uses: ./.github/workflows/gitleak
+        with:
+          version: "v8.18.4"
+          path: "backoffice-bff"
+          report-path: "backoffice-bff-gitleaks-report.json"
       - name: Upload Gitleaks Result
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
         uses: actions/upload-artifact@v4
@@ -188,7 +181,7 @@ jobs:
           scan-type: "fs"
           scan-ref: "./backoffice-bff"
           severity: "HIGH,CRITICAL"
-          exit-code: "0"
+          exit-code: "1"
           format: "sarif"
           output: "trivy-fs-results.sarif"
       - name: Upload Trivy fs scan results
@@ -341,7 +334,7 @@ jobs:
         with:
           image-ref: "ghcr.io/nashtech-garage/yas-backoffice-bff:latest"
           severity: "HIGH,CRITICAL"
-          exit-code: "0"
+          exit-code: "1"
           format: "sarif"
           output: "trivy-image-results.sarif"
       - name: Push Docker image
