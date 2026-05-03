@@ -2,6 +2,9 @@ package com.yas.customer.utils;
 
 public final class Constants {
 
+    private Constants() {
+    }
+
     public static final class ErrorCode {
         public static final String USER_WITH_EMAIL_NOT_FOUND = "USER_WITH_EMAIL_NOT_FOUND";
         public static final String USER_WITH_USERNAME_NOT_FOUND = "USER_WITH_USERNAME_NOT_FOUND";
