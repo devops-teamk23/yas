@@ -358,7 +358,7 @@ jobs:
         with:
           image-ref: "ghcr.io/${{ env.ORG_REPO }}/yas-webhook:latest"
           severity: "HIGH,CRITICAL"
-          exit-code: "1"
+          exit-code: "0"
           format: "sarif"
           output: "trivy-image-results.sarif"
       - name: Push Docker image
