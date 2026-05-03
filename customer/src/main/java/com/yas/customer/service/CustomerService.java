@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class CustomerService {
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private static final String ERROR_FORMAT = "%s: Client %s don't have access right for this resource";
     private static final int USER_PER_PAGE = 10;
@@ -152,9 +153,8 @@ public class CustomerService {
     }
 
     private String generateSafeString() {
-        SecureRandom random = new SecureRandom();
         byte[] bytes = new byte[12];
-        random.nextBytes(bytes);
+        RANDOM.nextBytes(bytes);
         Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
         return encoder.encodeToString(bytes);
     }
