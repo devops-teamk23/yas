@@ -37,4 +37,3 @@ runs:
           --verbose \
           --report-format=json \
           --no-git
-
