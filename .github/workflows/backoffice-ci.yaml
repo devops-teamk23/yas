@@ -227,7 +227,7 @@ jobs:
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Snyk Security Report
+          name: Backoffice Snyk Security Report
           path: |
             backoffice/snyk-results.json
             backoffice/snyk-auth.log
@@ -259,6 +259,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-fs-results.sarif"
+          category: "backoffice-trivy-fs-scan"
 
   run-unit-test:
     needs: test
@@ -413,3 +414,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-image-results.sarif"
+          category: "backoffice-trivy-image-scan"

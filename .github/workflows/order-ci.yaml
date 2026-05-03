@@ -173,7 +173,7 @@ jobs:
         if: ${{ always() && env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Snyk Security Report
+          name: Order Snyk Security Report
           path: |
             order/snyk-results.json
             order/snyk-auth.log
@@ -206,6 +206,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-fs-results.sarif"
+          category: "order-trivy-fs-scan"
 
   run-unit-test:
     needs: test
@@ -324,7 +325,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Jacoco Coverage Report
+          name: Order Jacoco Coverage Report
           path: order/target/site/jacoco/
 
   build:
@@ -379,3 +380,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-image-results.sarif"
+          category: "order-trivy-image-scan"

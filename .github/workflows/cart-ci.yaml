@@ -172,7 +172,7 @@ jobs:
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Snyk Security Report
+          name: Cart Snyk Security Report
           path: |
             cart/snyk-results.json
             cart/snyk-auth.log
@@ -205,6 +205,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-fs-results.sarif"
+          category: "cart-trivy-fs-scan"
 
   run-unit-test:
     needs: test
@@ -366,3 +367,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-image-results.sarif"
+          category: "cart-trivy-image-scan"

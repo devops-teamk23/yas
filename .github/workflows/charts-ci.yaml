@@ -4,6 +4,8 @@ on:
   push:
     branches: ["main", "unit-test/charts"]
     paths:
+      - "pom.xml"
+      - ".github/workflows/actions/action.yaml"
       - "k8s/charts/**"
       - ".github/workflows/charts-ci.yaml"
       - ".github/workflows/gitleak/action.yaml"
@@ -11,6 +13,8 @@ on:
   pull_request:
     branches: ["main"]
     paths:
+      - "pom.xml"
+      - ".github/workflows/actions/action.yaml"
       - "k8s/charts/**"
       - ".github/workflows/charts-ci.yaml"
       - ".github/workflows/gitleak/action.yaml"
@@ -171,6 +175,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: "trivy-fs-results.sarif"
+          category: "charts-trivy-scan"
 
   run-unit-test:
     needs: test

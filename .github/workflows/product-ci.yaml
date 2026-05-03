@@ -8,6 +8,7 @@ on:
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/product-ci.yaml"
+      - "pom.xml"
   pull_request:
     branches: ["main"]
     paths:
@@ -15,6 +16,7 @@ on:
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/product-ci.yaml"
+      - "pom.xml"
   workflow_dispatch:
 
 jobs:
@@ -170,7 +172,7 @@ jobs:
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Snyk Security Report
+          name: Product Snyk Security Report
           path: |
             product/snyk-results.json
             product/snyk-auth.log
@@ -204,6 +206,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-fs-results.sarif"
+          category: "product-trivy-fs-scan"
 
   run-unit-test:
     needs: test
@@ -312,7 +315,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Jacoco Coverage Report
+          name: Product Jacoco Coverage Report
           path: product/target/site/jacoco/
 
   build:
@@ -366,3 +369,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-image-results.sarif"
+          category: "product-trivy-image-scan"
