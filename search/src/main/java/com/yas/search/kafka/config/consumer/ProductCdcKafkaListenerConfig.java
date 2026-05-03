@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.listener.ContainerProperties;
 
 /**
  * Product CDC kafka listener, support convert product cdc message to java object.
@@ -25,7 +26,9 @@ public class ProductCdcKafkaListenerConfig extends BaseKafkaListenerConfig<Produ
     @Bean(name = PRODUCT_CDC_LISTENER_CONTAINER_FACTORY)
     @Override
     public ConcurrentKafkaListenerContainerFactory<ProductMsgKey, ProductCdcMessage> listenerContainerFactory() {
-        return super.kafkaListenerContainerFactory();
+        var factory = super.kafkaListenerContainerFactory();
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
+        return factory;
     }
 
 }
