@@ -341,6 +341,7 @@ jobs:
       security-events: write
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      ORG_REPO: devops-teamk23
     steps:
       - name: Checkout
         uses: actions/checkout@v4
