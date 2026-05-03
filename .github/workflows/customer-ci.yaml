@@ -15,7 +15,7 @@ on:
     paths:
       - "customer/**"
       - ".github/workflows/actions/action.yaml"
-      # - ".github/workflows/gitleak/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/customer-ci.yaml"
       - "gitleaks.toml"
       - "pom.xml"

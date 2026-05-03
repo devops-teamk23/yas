@@ -1,48 +1,267 @@
-name: {{SERVICE_NAME}} service ci
+name: <service-name> service ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main", "<feature-branch>"]
     paths:
-      - "{{SERVICE_NAME}}/**"
+      - "<service-folder>/**"
       - ".github/workflows/actions/action.yaml"
-      - ".github/workflows/{{SERVICE_NAME}}-ci.yaml"
+      - ".github/workflows/gitleak/action.yaml"
+      - ".github/workflows/<workflow-file>.yaml"
       - "pom.xml"
+
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
-      - "{{SERVICE_NAME}}/**"
+      - "<service-folder>/**"
       - ".github/workflows/actions/action.yaml"
-      - ".github/workflows/{{SERVICE_NAME}}-ci.yaml"
+      - ".github/workflows/gitleak/action.yaml"
+      - ".github/workflows/<workflow-file>.yaml"
       - "pom.xml"
+
   workflow_dispatch:
 
 jobs:
-  Build:
+  # =========================================================
+  # 1. SECURITY + STATIC VALIDATION
+  # =========================================================
+  test:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+
     env:
-      FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      RUN_SECURITY_SCANS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+
+    steps:
+      # Checkout source code
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Shared setup action
+      - uses: ./.github/workflows/actions
+
+      # Build dependencies
+      - name: Build and Install Dependencies
+        run: |
+          mvn clean install \
+            -DskipTests \
+            -pl <service-folder> \
+            -am \
+            -U
+
+      # =====================================================
+      # Gitleaks Secret Scan
+      # =====================================================
+      - name: Run Gitleaks Scan
+        id: gitleaks_scan
+        if: ${{ env.RUN_SECURITY_SCANS == 'true' }}
+        uses: ./.github/workflows/gitleak
+        with:
+          version: "v8.18.4"
+          path: "<service-folder>"
+          report-path: "<service>-gitleaks-report.json"
+
+      - name: Upload Gitleaks Result
+        if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: <Service> Gitleaks Report
+          path: <service>-gitleaks-report.json
+
+      # =====================================================
+      # Snyk Dependency Scan
+      # =====================================================
+      - name: Check Snyk Token Availability
+        id: snyk_token_check
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Snyk CLI
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        uses: snyk/actions/setup@master
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: "maven"
+
+      - name: Run Snyk Security Scan
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        working-directory: <service-folder>
+        run: |
+          snyk auth "$SNYK_TOKEN"
+
+          snyk test \
+            --file=pom.xml \
+            --package-manager=maven \
+            --severity-threshold=high \
+            --json-file-output=snyk-results.json
+
+      - name: Upload Snyk Results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && steps.snyk_token_check.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Snyk Security Report
+          path: |
+            <service-folder>/snyk-results.json
+
+      # =====================================================
+      # Trivy Filesystem Scan
+      # =====================================================
+      - name: Run Trivy filesystem scanner
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          scan-type: "fs"
+          scan-ref: "./<service-folder>"
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
+          ignore-unfixed: true
+          format: "sarif"
+          output: "trivy-fs-results.sarif"
+
+      - name: Upload Trivy fs scan results
+        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: "trivy-fs-results.sarif"
+
+  # =========================================================
+  # 2. UNIT TEST + QUALITY GATE
+  # =========================================================
+  run-unit-test:
+    needs: test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+      security-events: write
+
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      COVERAGE_THRESHOLD: 70
+
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0
+
       - uses: ./.github/workflows/actions
-      - name: Run Maven Build Command
-        run: mvn clean install -DskipTests -f {{SERVICE_NAME}}
-      - name: Run Maven Test
-        run: mvn test -f {{SERVICE_NAME}}
-      - name: Unit Test Results
-        uses: dorny/test-reporter@v1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
-        with:
-          name: Unit-Test-Results
-          path: "{{SERVICE_NAME}}/**/surefire-reports/*.xml"
-          reporter: java-junit
-      - name: Analyze with sonar cloud
+
+      # =====================================================
+      # Run Unit Test + JaCoCo
+      # =====================================================
+      - name: Run Maven Unit Tests and Coverage
+        run: |
+          mvn clean \
+            org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent \
+            test \
+            org.jacoco:jacoco-maven-plugin:0.8.14:report \
+            -pl <service-folder> \
+            -am \
+            -U
+
+      # =====================================================
+      # Coverage Gate
+      # =====================================================
+      - name: Enforce coverage threshold
+        run: |
+          python3 coverage-check.py
+
+      # =====================================================
+      # SonarCloud Scan
+      # =====================================================
+      - name: SonarCloud Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+        uses: SonarSource/sonarqube-scan-action@v5.0.0
+        with:
+          projectBaseDir: <service-folder>
+          args: >
+            -Dsonar.projectKey=<project-key>
+            -Dsonar.organization=<organization>
+            -Dsonar.sources=src/main/java
+            -Dsonar.tests=src/test/java
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+            -Dsonar.java.binaries=target/classes
+
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f {{SERVICE_NAME}}
+
+      # =====================================================
+      # Test Report
+      # =====================================================
+      - name: Test Results
+        uses: dorny/test-reporter@v1
+        if: ${{ success() || failure() }}
+        with:
+          name: <Service>-Unit-Test-Results
+          path: "<service-folder>/**/*-reports/TEST*.xml"
+          reporter: java-junit
+
+      # =====================================================
+      # Upload Coverage Report
+      # =====================================================
+      - name: Upload Coverage Report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jacoco Coverage Report
+          path: <service-folder>/target/site/jacoco/
+
+  # =========================================================
+  # 3. BUILD + CONTAINER SECURITY
+  # =========================================================
+  build:
+    needs: run-unit-test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+
+    env:
+      FROM_ORIGINAL_REPOSITORY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      ORG_REPO: <organization>
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/workflows/actions
+
+      # =====================================================
+      # Maven Package
+      # =====================================================
+      - name: Run Maven Build Command
+        run: |
+          mvn package \
+            -DskipTests \
+            -pl <service-folder> \
+            -am \
+            -U
+
+      # =====================================================
+      # Docker Login
+      # =====================================================
       - name: Log in to the Container registry
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
@@ -50,10 +269,42 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push Docker images
+
+      # =====================================================
+      # Build Docker Image
+      # =====================================================
+      - name: Build Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
         with:
-          context: ./{{SERVICE_NAME}}
-          push: true
-          tags: ghcr.io/nashtech-garage/yas-{{SERVICE_NAME}}:latest
+          context: ./<service-folder>
+          push: false
+          load: true
+          tags: ghcr.io/${{ env.ORG_REPO }}/<image-name>:latest
+
+      # =====================================================
+      # Trivy Image Scan
+      # =====================================================
+      - name: Run Trivy image scanner
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: "ghcr.io/${{ env.ORG_REPO }}/<image-name>:latest"
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
+          format: "sarif"
+          output: "trivy-image-results.sarif"
+
+      - name: Upload Trivy image scan results
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: "trivy-image-results.sarif"
+
+      # =====================================================
+      # Push Docker Image
+      # =====================================================
+      - name: Push Docker image
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          docker push ghcr.io/${{ env.ORG_REPO }}/<image-name>:latest

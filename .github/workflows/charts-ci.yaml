@@ -13,7 +13,7 @@ on:
     paths:
       - "k8s/charts/**"
       - ".github/workflows/charts-ci.yaml"
-      # - ".github/workflows/gitleak/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - "gitleaks.toml"
   workflow_dispatch:
 

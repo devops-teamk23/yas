@@ -14,7 +14,7 @@ on:
     paths:
       - "storefront-bff/**"
       - ".github/workflows/actions/action.yaml"
-      # - ".github/workflows/gitleak/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/storefront-bff-ci.yaml"
       - "pom.xml"
   workflow_dispatch:

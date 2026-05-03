@@ -13,7 +13,7 @@ on:
     paths:
       - "promotion/**"
       - ".github/workflows/actions/action.yaml"
-      #- ".github/workflows/gitleak/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/promotion-ci.yaml"
   workflow_dispatch:
 
@@ -32,9 +32,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
+          distribution: "temurin"
+          java-version: "21"
+          cache: "maven"
       - uses: ./.github/workflows/actions
       - name: Build and Install Dependencies
         run: mvn clean install -DskipTests -pl promotion -am -U
@@ -213,9 +213,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
+          distribution: "temurin"
+          java-version: "21"
+          cache: "maven"
       - uses: ./.github/workflows/actions
       - name: Run Maven Unit Tests and Coverage
         run: mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report -pl promotion -am -U
@@ -251,7 +251,7 @@ jobs:
           if coverage < threshold:
               print(f"::error::Line coverage {coverage:.2f}% is below required {threshold:.2f}%")
               sys.exit(1)
-          
+
           print("Coverage gate passed.")
           PY
       - name: SonarCloud Scan (Pull Request)
@@ -329,9 +329,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
+          distribution: "temurin"
+          java-version: "21"
+          cache: "maven"
       - uses: ./.github/workflows/actions
       - name: Run Maven Build Command
         run: mvn package -DskipTests -pl promotion -am -U

@@ -14,7 +14,7 @@ on:
     paths:
       - "cart/**"
       - ".github/workflows/actions/action.yaml"
-      # - ".github/workflows/gitleak/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/cart-ci.yaml"
       - "pom.xml"
   workflow_dispatch:
