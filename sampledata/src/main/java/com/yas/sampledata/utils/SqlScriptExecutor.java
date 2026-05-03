@@ -14,6 +14,11 @@ import org.springframework.stereotype.Component;
 public class SqlScriptExecutor {
 
     public void executeScriptsForSchema(DataSource dataSource, String schema, String locationPattern) {
+        if (dataSource == null) {
+            log.warn("Skipping SQL script execution because DataSource is null for schema: {}", schema);
+            return;
+        }
+
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         try {
             Resource[] resources = resolver.getResources(locationPattern);
