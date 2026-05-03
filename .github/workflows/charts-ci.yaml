@@ -286,34 +286,3 @@ jobs:
         run: |
           echo "Charts do not require a build step."
           echo "Build job completed."
-
-  release-charts:
-    needs: run-unit-test
-    if: ${{ github.ref == 'refs/heads/main' }}
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Configure Git
-        run: |
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
-      - name: Install Helm
-        uses: azure/setup-helm@v3.5
-
-      - name: Add Helm repositories
-        run: |
-          helm repo add stakater https://stakater.github.io/stakater-charts
-          helm repo update
-
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.5.0
-        with:
-          charts_dir: k8s/charts
-        env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
