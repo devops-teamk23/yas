@@ -14,7 +14,7 @@ on:
     paths:
       - "order/**"
       - ".github/workflows/actions/action.yaml"
-      #- ".github/workflows/gitleak/action.yaml"
+      - ".github/workflows/gitleak/action.yaml"
       - ".github/workflows/order-ci.yaml"
       - "pom.xml"
   workflow_dispatch:
