@@ -261,6 +261,7 @@ jobs:
             -Dsonar.sources=k8s/charts
             -Dsonar.inclusions=k8s/charts/**/*.yaml,k8s/charts/**/templates/**/*.tpl
             -Dsonar.coverage.exclusions=**/*
+            -Dsonar.branch.name=${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
