@@ -4,6 +4,7 @@ on:
   push:
     branches: ["**"]
     paths:
+      - "pom.xml"
       - "storefront/**"
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
@@ -11,6 +12,7 @@ on:
   pull_request:
     branches: ["**"]
     paths:
+      - "pom.xml"
       - "storefront/**"
       - ".github/workflows/actions/action.yaml"
       - ".github/workflows/gitleak/action.yaml"
@@ -166,7 +168,7 @@ jobs:
         if: ${{ always() && env.RUN_SECURITY_SCANS == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Snyk Security Report
+          name: Storefront Snyk Security Report
           path: |
             storefront/snyk-results.json
             storefront/snyk-auth.log
