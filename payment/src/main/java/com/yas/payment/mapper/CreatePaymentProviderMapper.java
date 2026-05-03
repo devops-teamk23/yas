@@ -7,7 +7,7 @@ import com.yas.payment.viewmodel.paymentprovider.PaymentProviderVm;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = org.mapstruct.ReportingPolicy.IGNORE)
 public interface CreatePaymentProviderMapper extends
     EntityCreateUpdateMapper<PaymentProvider, CreatePaymentVm, PaymentProviderVm> {
 
