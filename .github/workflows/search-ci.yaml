@@ -341,9 +341,8 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASS }}
 
       - name: Build Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -352,12 +351,12 @@ jobs:
           context: ./search
           push: false
           load: true
-          tags: ghcr.io/${{ env.ORG_REPO }}/yas-search:latest
+          tags: docker.io/${{ secrets.DOCKER_USERNAME }}/yas-search:${{ github.sha }},docker.io/${{ secrets.DOCKER_USERNAME }}/yas-search:latest
       - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "ghcr.io/${{ env.ORG_REPO }}/yas-search:latest"
+          image-ref: "docker.io/${{ secrets.DOCKER_USERNAME }}/yas-search:latest"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
           format: "sarif"
@@ -365,7 +364,8 @@ jobs:
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          docker push ghcr.io/${{ env.ORG_REPO }}/yas-search:latest
+          docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-search:${{ github.sha }}
+          docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-search:latest
 
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
