@@ -131,10 +131,11 @@ jobs:
             2>&1 | tee snyk-console.log
           SNYK_EXIT_CODE=${PIPESTATUS[0]}
 
-          if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)|Cannot build Maven dependency tree|SNYK-OS-MAVEN-0018|422 Unprocessable Entity" snyk-console.log; then
+          if [ $SNYK_EXIT_CODE -eq 2 ] && grep -Eq "Cannot build Maven dependency tree|SNYK-OS-MAVEN-0018|422 Unprocessable Entity|Child process failed with exit code: -13|Failed to get dependencies|Unspecified Error \(SNYK-CLI-0000\)" snyk-console.log; then
             echo "::warning::Snyk Maven scan hit known dependency resolution/runtime issue. Falling back to SBOM scan."
-            mvn -f ../pom.xml -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom -pl promotion -am -DoutputName=bom -Dcyclonedx.outputFormat=json
-            SBOM_EXIT_CODE=$?
+            mvn -DskipTests -Dcyclonedx.outputFormat=json org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom \
+              2>&1 | tee -a snyk-console.log
+            SBOM_EXIT_CODE=${PIPESTATUS[0]}
 
             if [ $SBOM_EXIT_CODE -ne 0 ] || [ ! -s "target/bom.json" ]; then
               echo "::error::Failed to generate CycloneDX SBOM for fallback Snyk scan."
@@ -342,9 +343,8 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASS }}
       - name: Build Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v6
@@ -352,19 +352,20 @@ jobs:
           context: ./promotion
           push: false
           load: true
-          tags: ghcr.io/${{ env.ORG_REPO }}/yas-promotion:latest
+          tags: docker.io/${{ secrets.DOCKER_USERNAME }}/yas-promotion:${{ github.sha }},docker.io/${{ secrets.DOCKER_USERNAME }}/yas-promotion:latest
       - name: Run Trivy image scanner
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "ghcr.io/${{ env.ORG_REPO }}/yas-promotion:latest"
+          image-ref: "docker.io/${{ secrets.DOCKER_USERNAME }}/yas-promotion:latest"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
           format: "sarif"
           output: "trivy-image-results.sarif"
       - name: Push Docker image
         if: ${{ github.ref == 'refs/heads/main' }}
-        run: docker push ghcr.io/${{ env.ORG_REPO }}/yas-promotion:latest
+        run: docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-promotion:${{ github.sha }}
+          docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-promotion:latest
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: github/codeql-action/upload-sarif@v3
