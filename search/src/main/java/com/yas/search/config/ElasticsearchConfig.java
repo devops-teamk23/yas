@@ -6,7 +6,10 @@ import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
 import org.springframework.data.elasticsearch.support.HttpHeaders;
 
+import org.springframework.context.annotation.Profile;
+
 @Configuration
+@Profile("!test")
 public class ElasticsearchConfig extends ElasticsearchConfiguration {
 
     @Value("${spring.elasticsearch.uris:elasticsearch-es-http.elasticsearch:9200}")
