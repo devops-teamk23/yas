@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import org.junit.jupiter.api.BeforeEach;
 import tools.jackson.databind.ObjectMapper;
 import com.yas.commonlibrary.kafka.cdc.message.Product;
 import com.yas.commonlibrary.kafka.cdc.message.ProductCdcMessage;
