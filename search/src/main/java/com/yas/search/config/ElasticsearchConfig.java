@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
-import org.springframework.data.elasticsearch.support.HttpHeaders;
 
 import org.springframework.context.annotation.Profile;
 
@@ -26,12 +25,6 @@ public class ElasticsearchConfig extends ElasticsearchConfiguration {
         return ClientConfiguration.builder()
                 .connectedTo(uris.replace("http://", "").replace("https://", ""))
                 .withBasicAuth(username, password)
-                .withHeaders(() -> {
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.set("Content-Type", "application/json");
-                    headers.set("Accept", "application/json");
-                    return headers;
-                })
                 .build();
     }
 }
