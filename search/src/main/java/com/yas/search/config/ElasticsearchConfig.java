@@ -1,24 +1,33 @@
 package com.yas.search.config;
 
-import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
-import org.elasticsearch.client.RestClientBuilder;
-import org.springframework.boot.autoconfigure.elasticsearch.RestClientBuilderCustomizer;
-import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.elasticsearch.client.ClientConfiguration;
+import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
 import org.springframework.http.HttpHeaders;
 
 @Configuration
-public class ElasticsearchConfig {
+public class ElasticsearchConfig extends ElasticsearchConfiguration {
 
-    @Bean
-    public RestClientBuilderCustomizer customizer() {
-        return builder -> {
-            Header[] defaultHeaders = new Header[]{
-                    new BasicHeader(HttpHeaders.CONTENT_TYPE, "application/json"),
-                    new BasicHeader(HttpHeaders.ACCEPT, "application/json")
-            };
-            builder.setDefaultHeaders(defaultHeaders);
-        };
+    @Value("${spring.elasticsearch.uris:elasticsearch-es-http.elasticsearch:9200}")
+    private String uris;
+
+    @Value("${spring.elasticsearch.username:elastic}")
+    private String username;
+
+    @Value("${spring.elasticsearch.password:}")
+    private String password;
+
+    @Override
+    public ClientConfiguration clientConfiguration() {
+        HttpHeaders defaultHeaders = new HttpHeaders();
+        defaultHeaders.add("Accept", "application/vnd.elasticsearch+json;compatible-with=8");
+        defaultHeaders.add("Content-Type", "application/vnd.elasticsearch+json;compatible-with=8");
+
+        return ClientConfiguration.builder()
+                .connectedTo(uris.replace("http://", "").replace("https://", ""))
+                .withBasicAuth(username, password)
+                .withDefaultHeaders(defaultHeaders)
+                .build();
     }
 }
