@@ -1,0 +1,79 @@
+name: developer_build
+
+on:
+  workflow_dispatch:
+    inputs:
+      sandbox_id:
+        description: "Sandbox environment name (e.g. test01)"
+        required: true
+      tax_branch:
+        description: "Branch for tax-service"
+        default: "main"
+      cart_branch:
+        description: "Branch for cart-service"
+        default: "main"
+      product_branch:
+        description: "Branch for product-service"
+        default: "main"
+      order_branch:
+        description: "Branch for order-service"
+        default: "main"
+
+jobs:
+  deploy-sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ltchcmus/yas-deploy
+          token: ${{ secrets.GITOPS_PAT }}
+          path: yas-deploy
+
+      - name: Render Sandbox Values
+        run: |
+          cd yas-deploy
+          cp overlays/sandbox-template/values.yaml /tmp/values-${{ github.event.inputs.sandbox_id }}.yaml
+          
+          # Update image tags based on the provided branch names
+          # (Assuming CI has pushed images with tags matching branch names or 'latest' for main)
+          yq -i '.services.tax.tag = "${{ github.event.inputs.tax_branch }}"' /tmp/values-${{ github.event.inputs.sandbox_id }}.yaml
+          yq -i '.services.cart.tag = "${{ github.event.inputs.cart_branch }}"' /tmp/values-${{ github.event.inputs.sandbox_id }}.yaml
+          yq -i '.services.product.tag = "${{ github.event.inputs.product_branch }}"' /tmp/values-${{ github.event.inputs.sandbox_id }}.yaml
+          yq -i '.services.order.tag = "${{ github.event.inputs.order_branch }}"' /tmp/values-${{ github.event.inputs.sandbox_id }}.yaml
+          
+          cat /tmp/values-${{ github.event.inputs.sandbox_id }}.yaml
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+
+      - name: Deploy via ArgoCD API
+        run: |
+          # Login to ArgoCD
+          argocd login argocd.yas.lethanhcong.site --username admin --password ${{ secrets.ARGOCD_PASSWORD }} --grpc-web
+          
+          # Create Application in ArgoCD
+          argocd app create dev-${{ github.event.inputs.sandbox_id }} \
+            --repo https://github.com/ltchcmus/yas-deploy \
+            --path charts/yas \
+            --dest-namespace dev-${{ github.event.inputs.sandbox_id }} \
+            --dest-server https://kubernetes.default.svc \
+            --values /tmp/values-${{ github.event.inputs.sandbox_id }}.yaml \
+            --sync-policy automated \
+            --sync-option CreateNamespace=true \
+            --upsert
+            
+          # Force sync
+          argocd app sync dev-${{ github.event.inputs.sandbox_id }} --timeout 300
+
+      - name: Report NodePort URLs
+        run: |
+          # Output domain:port mappings for easy access
+          echo "### 🚀 Sandbox Deployment Successful: \`dev-${{ github.event.inputs.sandbox_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Access your sandbox APIs through the following URLs:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tax Service**: http://yas.lethanhcong.site:30085" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cart Service**: http://yas.lethanhcong.site:30081" >> $GITHUB_STEP_SUMMARY
+          echo "- **Product Service**: http://yas.lethanhcong.site:30080" >> $GITHUB_STEP_SUMMARY
+          echo "- **Order Service**: http://yas.lethanhcong.site:30082" >> $GITHUB_STEP_SUMMARY
