@@ -24,8 +24,6 @@ public class ElasticsearchConfig extends ElasticsearchConfiguration {
     @Override
     public ClientConfiguration clientConfiguration() {
         HttpHeaders defaultHeaders = new HttpHeaders();
-        defaultHeaders.add("Accept", "application/vnd.elasticsearch+json;compatible-with=8");
-        defaultHeaders.add("Content-Type", "application/vnd.elasticsearch+json;compatible-with=8");
 
         return ClientConfiguration.builder()
                 .connectedTo(uris.replace("http://", "").replace("https://", ""))
