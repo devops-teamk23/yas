@@ -57,6 +57,17 @@ public class ProductCdcConsumerTest extends CdcConsumerTest<ProductMsgKey, Produ
         super(ProductMsgKey.class, ProductCdcMessage.class, "dbproduct.public.product");
     }
 
+    @Autowired
+    private org.springframework.data.elasticsearch.core.ElasticsearchOperations elasticsearchOperations;
+
+    @BeforeEach
+    public void setup() {
+        if (!elasticsearchOperations.indexOps(com.yas.search.model.Product.class).exists()) {
+            elasticsearchOperations.indexOps(com.yas.search.model.Product.class).create();
+            elasticsearchOperations.indexOps(com.yas.search.model.Product.class).putMapping(elasticsearchOperations.indexOps(com.yas.search.model.Product.class).createMapping());
+        }
+    }
+
     @AfterEach
     public void tearDown() {
         productRepository.deleteAll();
