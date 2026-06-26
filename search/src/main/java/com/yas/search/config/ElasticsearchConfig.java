@@ -23,14 +23,15 @@ public class ElasticsearchConfig extends ElasticsearchConfiguration {
 
     @Override
     public ClientConfiguration clientConfiguration() {
-        HttpHeaders defaultHeaders = new HttpHeaders();
-        defaultHeaders.add("Accept", "application/json");
-        defaultHeaders.add("Content-Type", "application/json");
-
         return ClientConfiguration.builder()
                 .connectedTo(uris.replace("http://", "").replace("https://", ""))
                 .withBasicAuth(username, password)
-                .withDefaultHeaders(defaultHeaders)
+                .withHeaders(() -> {
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.set("Content-Type", "application/json");
+                    headers.set("Accept", "application/json");
+                    return headers;
+                })
                 .build();
     }
 }
