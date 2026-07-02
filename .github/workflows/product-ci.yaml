@@ -1,4 +1,4 @@
-name: product service ci
+﻿name: product service ci
 
 on:
   push:
@@ -363,7 +363,6 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-product:${{ github.sha }}
-          docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-product:latest
 
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}

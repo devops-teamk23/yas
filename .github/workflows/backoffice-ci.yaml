@@ -1,4 +1,4 @@
-# hi x2
+﻿# hi x2
 name: backoffice service ci
 
 on:
@@ -408,7 +408,6 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-backoffice:${{ github.sha }}
-          docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-backoffice:latest
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: github/codeql-action/upload-sarif@v4

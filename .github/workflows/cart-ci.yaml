@@ -1,4 +1,4 @@
-name: cart service ci
+﻿name: cart service ci
 
 on:
   push:
@@ -362,7 +362,6 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-cart:${{ github.sha }}
-          docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-cart:latest
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: github/codeql-action/upload-sarif@v4

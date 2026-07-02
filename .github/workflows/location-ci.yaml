@@ -1,4 +1,4 @@
-name: location service ci
+﻿name: location service ci
 
 on:
   push:
@@ -384,7 +384,6 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-location:${{ github.sha }}
-          docker push docker.io/${{ secrets.DOCKER_USERNAME }}/yas-location:latest
 
       - name: Upload Trivy image scan results
         if: ${{ github.ref == 'refs/heads/main' }}
