@@ -2,7 +2,6 @@
 
 on:
   push:
-    branches: ["main", "unit-test/backoffice-bff"]
     paths:
       - "backoffice-bff/**"
       - ".github/workflows/actions/action.yaml"

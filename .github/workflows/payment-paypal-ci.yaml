@@ -2,7 +2,6 @@
 
 on:
   push:
-    branches: ["main", "unit-test/payment-paypal"]
     paths:
       - "payment-paypal/**"
       - ".github/workflows/actions/action.yaml"

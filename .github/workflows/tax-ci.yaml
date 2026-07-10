@@ -2,7 +2,6 @@
 
 on:
   push:
-    branches: ["main", "unit-test/tax"]
     paths:
       - "tax/**"
       - ".github/workflows/actions/action.yaml"

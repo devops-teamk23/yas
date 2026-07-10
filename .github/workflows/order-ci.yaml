@@ -2,7 +2,6 @@
 
 on:
   push:
-    branches: ["main", "unit-test/order"]
     paths:
       - "order/**"
       - ".github/workflows/actions/action.yaml"

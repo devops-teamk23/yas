@@ -2,7 +2,6 @@
 
 on:
   push:
-    branches: ["main", "unit-test/charts"]
     paths:
       - "pom.xml"
       - ".github/workflows/actions/action.yaml"

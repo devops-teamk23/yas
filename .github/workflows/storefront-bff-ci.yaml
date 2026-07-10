@@ -2,7 +2,6 @@
 
 on:
   push:
-    branches: ["main", "unit-test/storefront-bff"]
     paths:
       - "storefront-bff/**"
       - ".github/workflows/actions/action.yaml"

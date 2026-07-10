@@ -2,7 +2,6 @@
 
 on:
   push:
-    branches: ["main", "unit-test/product"]
     paths:
       - "product/**"
       - ".github/workflows/actions/action.yaml"

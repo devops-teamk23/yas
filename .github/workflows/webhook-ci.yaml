@@ -2,7 +2,6 @@
 
 on:
   push:
-    branches: ["main", "unit-test/webhook"]
     paths:
       - "webhook/**"
       - ".github/workflows/actions/action.yaml"

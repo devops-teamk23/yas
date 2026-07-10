@@ -2,7 +2,6 @@
 
 on:
   push:
-    branches: ["main", "unit-test/promotion"]
     paths:
       - "promotion/**"
       - ".github/workflows/actions/action.yaml"
